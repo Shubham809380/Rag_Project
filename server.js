@@ -336,22 +336,22 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Error handler
+// Serve frontend build (for production deploy)
+const frontendBuild = path.join(__dirname, 'frontend', 'dist');
+if (fs.existsSync(frontendBuild)) {
+  app.use(express.static(frontendBuild));
+  app.use((req, res) => {
+    res.sendFile(path.join(frontendBuild, 'index.html'));
+  });
+}
+
+// Error handler (must be last)
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     return res.status(400).json({ message: 'File upload error: ' + err.message });
   }
   res.status(500).json({ message: err.message || 'Internal server error' });
 });
-
-// Serve frontend build (for production deploy)
-const frontendBuild = path.join(__dirname, 'frontend', 'dist');
-if (fs.existsSync(frontendBuild)) {
-  app.use(express.static(frontendBuild));
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendBuild, 'index.html'));
-  });
-}
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
