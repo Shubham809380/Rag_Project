@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 import axios from 'axios';
 
@@ -12,7 +12,7 @@ const api = axios.create({
 
 export const uploadDocument = async (file) => {
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('files', file);
   const response = await api.post('/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: (e) => {

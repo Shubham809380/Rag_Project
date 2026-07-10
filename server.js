@@ -17,12 +17,14 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const isVercel = !!process.env.VERCEL;
 
 app.use(cors());
 app.use(express.json());
 
+const uploadsDir = isVercel ? '/tmp' : path.join(__dirname, 'uploads');
 const upload = multer({
-  dest: path.join(__dirname, 'uploads'),
+  dest: uploadsDir,
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.pdf', '.docx', '.txt'];
@@ -37,7 +39,7 @@ const upload = multer({
 
 const uploadMultiple = upload.array('files', 10);
 
-if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
+if (!isVercel && !fs.existsSync(path.join(__dirname, 'uploads'))) {
   fs.mkdirSync(path.join(__dirname, 'uploads'));
 }
 
@@ -353,12 +355,17 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: err.message || 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`Endpoints:`);
-  console.log(`  POST /api/upload    - Upload & index document`);
-  console.log(`  POST /api/analyze   - Ask question about document`);
-  console.log(`  GET  /api/history   - Get analysis history`);
-  console.log(`  GET  /api/debug     - Check Pinecone data`);
-  console.log(`  GET  /api/health    - Health check`);
-});
+// Listen only when running directly (not on Vercel)
+if (!isVercel) {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Endpoints:`);
+    console.log(`  POST /api/upload    - Upload & index document`);
+    console.log(`  POST /api/analyze   - Ask question about document`);
+    console.log(`  GET  /api/history   - Get analysis history`);
+    console.log(`  GET  /api/debug     - Check Pinecone data`);
+    console.log(`  GET  /api/health    - Health check`);
+  });
+}
+
+export { app };
