@@ -64,7 +64,7 @@ function getPineconeClient() {
 
 export function getPineconeIndex() {
   if (!_pineconeIndex) {
-    _pineconeIndex = getPineconeClient().Index(process.env.PINECONE_INDEX_NAME);
+    _pineconeIndex = getPineconeClient().Index(process.env.PINECONE_INDEX_NAME, process.env.PINECONE_HOST || undefined);
   }
   return _pineconeIndex;
 }
@@ -472,7 +472,7 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
         model: modelName,
         temperature: 0.2,
         maxRetries: 0,
-        timeout: isVercel ? 20000 : 60000,
+        timeout: isVercel ? 12000 : 60000,
       });
 
       console.log(`  [LLM] Trying ${modelName}...`);

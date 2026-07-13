@@ -40,9 +40,9 @@ app.use(cors({
 app.use(express.json());
 app.use(passport.initialize());
 
-// Auto-migration on startup
-let migrationDone = false;
-const migrationPromise = (async () => {
+// Auto-migration on startup (skip on Vercel - run via /api/admin/migrate instead)
+let migrationDone = true;
+const migrationPromise = isVercel ? Promise.resolve() : (async () => {
   try {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'`);
     await pool.query(`
