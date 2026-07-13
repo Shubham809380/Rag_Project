@@ -99,8 +99,9 @@ export default function DashboardPage() {
       }]);
       loadConversations();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to get response');
-      setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: 'assistant', content: 'Sorry, I encountered an error. Please try again.', createdAt: new Date().toISOString() }]);
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to get response';
+      toast.error(errorMsg);
+      setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: 'assistant', content: `Sorry, I encountered an error: ${errorMsg}`, createdAt: new Date().toISOString() }]);
     } finally { setIsLoading(false); }
   };
 

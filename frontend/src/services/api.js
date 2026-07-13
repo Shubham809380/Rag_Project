@@ -4,12 +4,29 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 120000,
+  timeout: 90000,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      const data = error.response.data;
+      if (typeof data === 'string' && data.includes('<!DOCTYPE')) {
+        error.response.data = { message: 'Server error - the request may have timed out. Please try again.' };
+      }
+    } else if (error.code === 'ECONNABORTED') {
+      error.message = 'Request timed out. Please try again.';
+    } else if (!error.response) {
+      error.message = 'Network error. Please check your connection.';
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Document
 export const uploadDocument = async (file) => {

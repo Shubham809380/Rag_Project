@@ -41,7 +41,8 @@ app.use(express.json());
 app.use(passport.initialize());
 
 // Auto-migration on startup
-async function autoMigrate() {
+let migrationDone = false;
+const migrationPromise = (async () => {
   try {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'`);
     await pool.query(`
@@ -72,9 +73,45 @@ async function autoMigrate() {
     console.log('Auto-migration completed');
   } catch (err) {
     console.error('Auto-migration error:', err.message);
+  } finally {
+    migrationDone = true;
   }
-}
-autoMigrate();
+})();
+
+app.get('/api/admin/migrate', async (req, res) => {
+  try {
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS page_visits (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        email VARCHAR(255),
+        page VARCHAR(500) NOT NULL,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        referrer TEXT,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_page_visits_user_id ON page_visits(user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_page_visits_created_at ON page_visits(created_at)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        login_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        logout_at TIMESTAMPTZ,
+        ip_address VARCHAR(45),
+        user_agent TEXT
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)`);
+    migrationDone = true;
+    res.json({ message: 'Migration completed' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 // Passport setup
 passport.serializeUser((user, done) => done(null, user));
@@ -99,20 +136,40 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       }
 
       const isAdminUser = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-      const result = await pool.query(
-        `INSERT INTO users (google_id, full_name, email, avatar_url, email_verified, role, last_login_at)
-         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-         ON CONFLICT (google_id) DO UPDATE SET
-           full_name = EXCLUDED.full_name,
-           email = EXCLUDED.email,
-           avatar_url = EXCLUDED.avatar_url,
-           email_verified = EXCLUDED.email_verified,
-           role = CASE WHEN ${isAdminUser} THEN 'admin' ELSE users.role END,
-           updated_at = CURRENT_TIMESTAMP,
-           last_login_at = CURRENT_TIMESTAMP
-         RETURNING id, google_id, full_name, email, avatar_url, role`,
-        [googleId, fullName, email, avatarUrl, emailVerified, isAdminUser ? 'admin' : 'user']
-      );
+      let result;
+      try {
+        result = await pool.query(
+          `INSERT INTO users (google_id, full_name, email, avatar_url, email_verified, role, last_login_at)
+           VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+           ON CONFLICT (google_id) DO UPDATE SET
+             full_name = EXCLUDED.full_name,
+             email = EXCLUDED.email,
+             avatar_url = EXCLUDED.avatar_url,
+             email_verified = EXCLUDED.email_verified,
+             role = CASE WHEN ${isAdminUser} THEN 'admin' ELSE users.role END,
+             updated_at = CURRENT_TIMESTAMP,
+             last_login_at = CURRENT_TIMESTAMP
+           RETURNING id, google_id, full_name, email, avatar_url, role`,
+          [googleId, fullName, email, avatarUrl, emailVerified, isAdminUser ? 'admin' : 'user']
+        );
+      } catch (roleErr) {
+        result = await pool.query(
+          `INSERT INTO users (google_id, full_name, email, avatar_url, email_verified, last_login_at)
+           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+           ON CONFLICT (google_id) DO UPDATE SET
+             full_name = EXCLUDED.full_name,
+             email = EXCLUDED.email,
+             avatar_url = EXCLUDED.avatar_url,
+             email_verified = EXCLUDED.email_verified,
+             updated_at = CURRENT_TIMESTAMP,
+             last_login_at = CURRENT_TIMESTAMP
+           RETURNING id, google_id, full_name, email, avatar_url`,
+          [googleId, fullName, email, avatarUrl, emailVerified]
+        );
+        if (result.rows[0]) {
+          result.rows[0].role = isAdminUser ? 'admin' : 'user';
+        }
+      }
 
       const user = result.rows[0];
       return done(null, user);
@@ -224,10 +281,21 @@ app.get('/api/auth/google/callback',
 
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT id, full_name, email, avatar_url, role, created_at FROM users WHERE id = $1',
-      [req.user.id]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        'SELECT id, full_name, email, avatar_url, role, created_at FROM users WHERE id = $1',
+        [req.user.id]
+      );
+    } catch (roleErr) {
+      result = await pool.query(
+        'SELECT id, full_name, email, avatar_url, created_at FROM users WHERE id = $1',
+        [req.user.id]
+      );
+      if (result.rows.length > 0) {
+        result.rows[0].role = 'user';
+      }
+    }
     if (result.rows.length === 0) {
       clearAuthCookie(res);
       return res.status(401).json({ message: 'User not found' });
@@ -235,7 +303,9 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
     const user = result.rows[0];
     const isAdminUser = user.email === ADMIN_EMAIL;
     if (isAdminUser && user.role !== 'admin') {
-      await pool.query("UPDATE users SET role = 'admin' WHERE id = $1", [user.id]);
+      try {
+        await pool.query("UPDATE users SET role = 'admin' WHERE id = $1", [user.id]);
+      } catch {}
       user.role = 'admin';
     }
     res.json({ user });
@@ -271,12 +341,25 @@ app.post('/api/auth/register', async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const isAdminEmail = email.toLowerCase() === ADMIN_EMAIL;
-    const result = await pool.query(
-      `INSERT INTO users (full_name, email, password_hash, auth_provider, email_verified, role, last_login_at)
-       VALUES ($1, $2, $3, 'email', false, $4, CURRENT_TIMESTAMP)
-       RETURNING id, full_name, email, avatar_url, role, created_at`,
-      [name.trim(), email.toLowerCase(), passwordHash, isAdminEmail ? 'admin' : 'user']
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO users (full_name, email, password_hash, auth_provider, email_verified, role, last_login_at)
+         VALUES ($1, $2, $3, 'email', false, $4, CURRENT_TIMESTAMP)
+         RETURNING id, full_name, email, avatar_url, role, created_at`,
+        [name.trim(), email.toLowerCase(), passwordHash, isAdminEmail ? 'admin' : 'user']
+      );
+    } catch (roleErr) {
+      result = await pool.query(
+        `INSERT INTO users (full_name, email, password_hash, auth_provider, email_verified, last_login_at)
+         VALUES ($1, $2, $3, 'email', false, CURRENT_TIMESTAMP)
+         RETURNING id, full_name, email, avatar_url, created_at`,
+        [name.trim(), email.toLowerCase(), passwordHash]
+      );
+      if (result.rows[0]) {
+        result.rows[0].role = isAdminEmail ? 'admin' : 'user';
+      }
+    }
 
     const user = result.rows[0];
     const token = generateToken(user);
@@ -295,10 +378,21 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const result = await pool.query(
-      'SELECT id, full_name, email, avatar_url, password_hash, role, created_at FROM users WHERE email = $1',
-      [email.toLowerCase()]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        'SELECT id, full_name, email, avatar_url, password_hash, role, created_at FROM users WHERE email = $1',
+        [email.toLowerCase()]
+      );
+    } catch (roleErr) {
+      result = await pool.query(
+        'SELECT id, full_name, email, avatar_url, password_hash, created_at FROM users WHERE email = $1',
+        [email.toLowerCase()]
+      );
+      if (result.rows[0]) {
+        result.rows[0].role = 'user';
+      }
+    }
     if (result.rows.length === 0) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -670,7 +764,19 @@ app.post('/api/analyze', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Analyze error:', error.message);
     console.error(error.stack);
-    res.status(500).json({ message: 'Analysis failed: ' + error.message });
+
+    let userMessage = 'Analysis failed: ' + error.message;
+    if (error.message && error.message.includes('Pipeline timeout')) {
+      userMessage = 'The request took too long. Please try a shorter question or try again later.';
+    } else if (error.message && error.message.includes('ECONNRESET')) {
+      userMessage = 'Connection lost. Please try again.';
+    } else if (error.message && error.message.includes('ETIMEDOUT')) {
+      userMessage = 'Connection timed out. Please try again.';
+    } else if (error.status === 429 || (error.message && error.message.includes('429'))) {
+      userMessage = 'AI service is rate-limited. Please try again in a moment.';
+    }
+
+    res.status(500).json({ message: userMessage });
   }
 });
 
