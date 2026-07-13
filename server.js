@@ -40,6 +40,42 @@ app.use(cors({
 app.use(express.json());
 app.use(passport.initialize());
 
+// Auto-migration on startup
+async function autoMigrate() {
+  try {
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS page_visits (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        email VARCHAR(255),
+        page VARCHAR(500) NOT NULL,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        referrer TEXT,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_page_visits_user_id ON page_visits(user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_page_visits_created_at ON page_visits(created_at)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        login_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        logout_at TIMESTAMPTZ,
+        ip_address VARCHAR(45),
+        user_agent TEXT
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)`);
+    console.log('Auto-migration completed');
+  } catch (err) {
+    console.error('Auto-migration error:', err.message);
+  }
+}
+autoMigrate();
+
 // Passport setup
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
