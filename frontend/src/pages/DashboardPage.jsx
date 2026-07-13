@@ -35,14 +35,14 @@ export default function DashboardPage() {
     try {
       const data = await getConversations();
       setConversations(Array.isArray(data) ? data : data.conversations || []);
-    } catch { setConversations([]); }
+    } catch { /* keep stale data on transient errors */ }
   }, []);
 
   const loadDocuments = useCallback(async () => {
     try {
       const data = await getDocuments();
       setDocuments(Array.isArray(data) ? data : data.documents || []);
-    } catch { setDocuments([]); }
+    } catch { /* keep stale data on transient errors */ }
   }, []);
 
   useEffect(() => { loadConversations(); loadDocuments(); }, [loadConversations, loadDocuments]);
@@ -105,15 +105,19 @@ export default function DashboardPage() {
     } finally { setIsLoading(false); }
   };
 
-  // Accepts a File object from DocumentPanel
   const handleFileUpload = async (input) => {
     const file = input instanceof File ? input : null;
     if (!file) return;
     const t = toast.loading(`Uploading ${file.name}...`);
     try {
-      await uploadDocument(file);
-      toast.success(`${file.name} uploaded!`, { id: t });
-      loadDocuments();
+      const res = await uploadDocument(file);
+      const first = res?.files?.[0];
+      if (first?.error) {
+        toast.error(`${file.name}: ${first.error}`, { id: t, duration: 6000 });
+      } else {
+        toast.success(`${file.name} uploaded! ${first?.chunks ?? ''} chunks`, { id: t });
+      }
+      await loadDocuments();
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Upload failed';
       toast.error(`Upload failed: ${msg}`, { id: t, duration: 5000 });
@@ -121,7 +125,7 @@ export default function DashboardPage() {
   };
 
   const handleDeleteDocument = async (id) => {
-    try { await deleteDocument(id); setDocuments((prev) => prev.filter((d) => d.id !== id)); toast.success('Document deleted'); loadDocuments(); }
+    try { await deleteDocument(id); setDocuments((prev) => prev.filter((d) => d.id !== id)); toast.success('Document deleted'); await loadDocuments(); }
     catch { toast.error('Failed to delete document'); }
   };
 
