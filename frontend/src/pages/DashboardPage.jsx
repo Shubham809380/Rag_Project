@@ -117,7 +117,8 @@ export default function DashboardPage() {
         if (first.debug) extra.push(`pages=${first.debug.pages}, size=${first.debug.fileSize}B`);
         if (first.totalChars != null) extra.push(`chars=${first.totalChars}`);
         if (first.chunkCount != null) extra.push(`chunked=${first.chunkCount}`);
-        toast.error(`${file.name}: ${first.error}${extra.length ? ' [' + extra.join(', ') + ']' : ''}`, { id: t, duration: 10000 });
+        const codeTag = first.code ? `[${first.code}] ` : '';
+        toast.error(`${codeTag}${file.name}: ${first.error}${extra.length ? ' [' + extra.join(', ') + ']' : ''}`, { id: t, duration: 10000 });
       } else {
         toast.success(`${file.name} uploaded! ${first?.chunks ?? ''} chunks`, { id: t });
       }

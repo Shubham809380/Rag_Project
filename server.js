@@ -51,6 +51,17 @@ if (!authConfig.googleClientId || !authConfig.googleClientSecret) {
   console.warn('[WARN] GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is missing. Google OAuth will not work.');
 }
 
+console.log('[startup] Environment check:', JSON.stringify({
+  hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+  hasPineconeKey: Boolean(process.env.PINECONE_API_KEY),
+  hasPineconeIndex: Boolean(process.env.PINECONE_INDEX_NAME),
+  hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+  hasJwtSecret: Boolean(authConfig.jwtSecret),
+  hasGoogleOAuth: Boolean(authConfig.googleClientId && authConfig.googleClientSecret),
+  nodeEnv: process.env.NODE_ENV || 'development',
+  isVercel,
+}));
+
 app.set('trust proxy', 1);
 
 app.use(cookieParser());
@@ -581,6 +592,7 @@ app.post('/api/upload', authenticateToken, (req, res) => {
             chunks: 0,
             totalChars: result.totalChars,
             chunkCount: result.chunkCount,
+            code: result.code || 'DOCUMENT_NO_CHUNKS',
             error: result.error || 'No readable text could be extracted from this document.',
             debug: { fileSize: file.size, mimeType: file.mimetype, pages: result.pages },
           });
@@ -891,6 +903,20 @@ app.get('/api/debug', async (req, res) => {
     res.json(stats);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/api/debug/embedding', async (req, res) => {
+  try {
+    const pipeline = await getPipeline();
+    const result = await pipeline.embedSingleText('Embedding health check');
+    const envCheck = {
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      embedModel: 'gemini-embedding-001',
+    };
+    res.json({ ...result, env: envCheck });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

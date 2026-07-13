@@ -9,7 +9,8 @@
 
 import fs from 'fs';
 import path from 'path';
-import { GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { chunkByPages } from './chunker.js';
 import { buildRAGPrompt, buildContext, generateFollowUps } from './prompts.js';
@@ -31,7 +32,7 @@ const isVercel = !!process.env.VERCEL;
 const PIPELINE_TIMEOUT_MS = isVercel ? 40000 : 120000;
 
 async function withRetry(fn, { label = 'operation', maxRetries = 3, baseDelay = 1000, maxDelay = 15000 } = {}) {
-  const retries = isVercel ? 1 : maxRetries;
+  const retries = isVercel ? Math.min(maxRetries, 2) : maxRetries;
   let lastError;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -53,7 +54,8 @@ async function withRetry(fn, { label = 'operation', maxRetries = 3, baseDelay = 
 
 let _pineconeClient = null;
 let _pineconeIndex = null;
-let _embeddings = null;
+let _genAI = null;
+let _embedModel = null;
 
 function getPineconeClient() {
   if (!_pineconeClient) { _pineconeClient = new Pinecone(); }
@@ -67,14 +69,102 @@ export function getPineconeIndex() {
   return _pineconeIndex;
 }
 
-export function getEmbeddings() {
-  if (!_embeddings) {
-    _embeddings = new GoogleGenerativeAIEmbeddings({
-      apiKey: process.env.GEMINI_API_KEY,
-      model: EMBED_MODEL,
-    });
+function getGenAI() {
+  if (!_genAI) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+    _genAI = new GoogleGenerativeAI(apiKey);
   }
-  return _embeddings;
+  return _genAI;
+}
+
+function getEmbedModel() {
+  if (!_embedModel) {
+    _embedModel = getGenAI().getGenerativeModel({ model: EMBED_MODEL });
+  }
+  return _embedModel;
+}
+
+export async function embedTexts(texts, { label = 'batch' } = {}) {
+  const model = getEmbedModel();
+  const results = [];
+
+  for (let i = 0; i < texts.length; i += 10) {
+    const batch = texts.slice(i, i + 10);
+    const batchLabel = `${label}-${Math.floor(i / 10) + 1}`;
+    const batchStart = Date.now();
+
+    try {
+      const response = await withRetry(async () => {
+        const res = await model.batchEmbedContents({
+          requests: batch.map(text => ({
+            model: EMBED_MODEL,
+            content: { role: 'user', parts: [{ text }] },
+          })),
+        });
+        return res;
+      }, { label: batchLabel, maxRetries: 2, baseDelay: 1000 });
+
+      const batchTime = Date.now() - batchStart;
+      const batchVectors = response.embeddings.map((e, idx) => {
+        if (!e || !e.values || e.values.length === 0) {
+          console.error(`    [EMBED] ${batchLabel}#${i + idx}: empty vector returned`);
+          return null;
+        }
+        return e.values;
+      });
+
+      const validCount = batchVectors.filter(v => v !== null).length;
+      console.log(`    [EMBED] ${batchLabel}: ${validCount}/${batch.length} vectors (${batchVectors[0]?.length || 0}d) | ${batchTime}ms`);
+
+      for (let idx = 0; idx < batchVectors.length; idx++) {
+        if (batchVectors[idx] === null) {
+          console.error(`    [EMBED] ${batchLabel}#${i + idx}: SKIP - empty vector for text (${batch[idx].length} chars)`);
+        }
+        results.push(batchVectors[idx]);
+      }
+    } catch (err) {
+      const batchTime = Date.now() - batchStart;
+      const status = err.status || err.statusCode || 0;
+      const errMsg = err.message || 'unknown error';
+      console.error(`    [EMBED] ${batchLabel}: FAILED (${batchTime}ms) status=${status} model=${EMBED_MODEL}`);
+      console.error(`    [EMBED] ${batchLabel}: error=${errMsg.substring(0, 200)}`);
+      if (err.errorDetails) console.error(`    [EMBED] ${batchLabel}: details=${JSON.stringify(err.errorDetails).substring(0, 300)}`);
+
+      let hint = '';
+      if (status === 401 || status === 403) hint = ' -> Invalid GEMINI_API_KEY or API not enabled.';
+      else if (status === 404) hint = ` -> Model "${EMBED_MODEL}" not found. Check model name.`;
+      else if (status === 429) hint = ' -> Rate limited / quota exceeded.';
+      else if (status === 0) hint = ' -> Network error or SDK issue.';
+      if (hint) console.error(`    [EMBED] ${batchLabel}: HINT${hint}`);
+
+      for (let idx = 0; idx < batch.length; idx++) {
+        results.push(null);
+      }
+    }
+  }
+
+  return results;
+}
+
+export async function embedSingleText(text) {
+  const model = getEmbedModel();
+  const start = Date.now();
+  try {
+    const result = await withRetry(async () => {
+      return await model.embedContent(text);
+    }, { label: 'embed-single', maxRetries: 2, baseDelay: 1000 });
+    const elapsed = Date.now() - start;
+    const values = result.embedding?.values;
+    if (!values || values.length === 0) {
+      return { success: false, error: 'Empty vector returned', duration: elapsed };
+    }
+    return { success: true, dimension: values.length, model: EMBED_MODEL, duration: elapsed };
+  } catch (err) {
+    const elapsed = Date.now() - start;
+    const status = err.status || err.statusCode || 0;
+    return { success: false, error: err.message, status, model: EMBED_MODEL, duration: elapsed };
+  }
 }
 
 // --- KEYWORD MATCHING ---
@@ -266,61 +356,63 @@ export async function ingestDocument(file, user) {
     return { fileId, fileName, pages: totalPages, chunks: 0, totalChars, chunkCount: 0, error: `Text extracted (${totalChars} chars) but too short to create chunks.` };
   }
 
-  // Step 3: Embed & Store (with retries)
+  // Step 3: Embed & Store
   const embedStart = Date.now();
-  const embeddings = getEmbeddings();
   const pineconeIndex = getPineconeIndex();
   let totalUpserted = 0;
   let totalSkipped = 0;
 
-  console.log(`  [EMBED & UPLOAD] ${chunks.length} chunks in ${Math.ceil(chunks.length / INGEST_BATCH)} batches`);
-  for (let i = 0; i < chunks.length; i += INGEST_BATCH) {
-    const batch = chunks.slice(i, i + INGEST_BATCH);
-    const texts = batch.map(c => c.pageContent);
-    const batchStart = Date.now();
+  const allTexts = chunks.map(c => c.pageContent);
+  console.log(`  [EMBED] ${chunks.length} chunks`);
+  const allVectors = await embedTexts(allTexts, { label: 'ingest' });
+  const embedTime = Date.now() - embedStart;
 
-    const vectors = await withRetry(
-      () => embeddings.embedDocuments(texts),
-      { label: `embed-batch-${Math.floor(i/INGEST_BATCH)+1}`, maxRetries: 3, baseDelay: 2000 }
-    );
+  const validCount = allVectors.filter(v => v !== null).length;
+  const dimCheck = allVectors.find(v => v !== null)?.length || 0;
+  console.log(`  [EMBED] ${validCount}/${chunks.length} vectors generated (${dimCheck}d) | ${embedTime}ms`);
 
-    const embedTime = Date.now() - batchStart;
+  if (validCount === 0) {
+    try { fs.unlinkSync(filePath); } catch {}
+    const totalTime = Date.now() - ingestStart;
+    console.log(`  [ERROR] All ${chunks.length} embeddings failed | Total: ${totalTime}ms`);
+    console.log(`${'='.repeat(60)}\n`);
+    return { fileId, fileName, pages: totalPages, chunks: 0, totalChars, chunkCount: chunks.length, code: 'EMBEDDING_GENERATION_FAILED', error: 'Embedding generation failed for every chunk. Check GEMINI_API_KEY and model availability.' };
+  }
 
-    const records = [];
-    for (let idx = 0; idx < batch.length; idx++) {
-      if (vectors[idx] && vectors[idx].length > 0) {
-        const content = batch[idx].pageContent;
-        records.push({
-          id: `${fileId}-chunk-${i + idx}`,
-          values: vectors[idx],
-          metadata: {
-            pageContent: content,
-            source: fileName,
-            fileId,
-            userId: user?.id || 'anonymous',
-            page: batch[idx].metadata?.page || 0,
-            section: batch[idx].metadata?.section || '',
-            chunkIndex: batch[idx].metadata?.chunkIndex || i + idx,
-          },
-        });
-      } else {
-        totalSkipped++;
-      }
-    }
+  if (dimCheck !== 3072) {
+    console.warn(`  [WARN] Vector dimension ${dimCheck} != expected 3072 for Pinecone index "${process.env.PINECONE_INDEX_NAME}". Upsert may fail.`);
+  }
 
-    if (records.length > 0) {
-      const upsertStart = Date.now();
-      await withRetry(
-        () => pineconeIndex.upsert({ records }),
-        { label: `upsert-batch-${Math.floor(i/INGEST_BATCH)+1}`, maxRetries: 3, baseDelay: 2000 }
-      );
-      const upsertTime = Date.now() - upsertStart;
-      totalUpserted += records.length;
-      console.log(`    Batch ${Math.floor(i / INGEST_BATCH) + 1}: ${batch.length} chunks -> ${vectors.length} vectors (embed: ${embedTime}ms, upsert: ${upsertTime}ms)`);
+  const records = [];
+  for (let idx = 0; idx < chunks.length; idx++) {
+    if (allVectors[idx] && allVectors[idx].length > 0) {
+      records.push({
+        id: `${fileId}-chunk-${idx}`,
+        values: allVectors[idx],
+        metadata: {
+          pageContent: chunks[idx].pageContent,
+          source: fileName,
+          fileId,
+          userId: user?.id || 'anonymous',
+          page: chunks[idx].metadata?.page || 0,
+          section: chunks[idx].metadata?.section || '',
+          chunkIndex: chunks[idx].metadata?.chunkIndex || idx,
+        },
+      });
     } else {
-      console.log(`    Batch ${Math.floor(i / INGEST_BATCH) + 1}: ${batch.length} chunks -> 0 records (all skipped)`);
+      totalSkipped++;
     }
   }
+
+  console.log(`  [UPSERT] ${records.length} records to Pinecone index "${process.env.PINECONE_INDEX_NAME}"`);
+  const upsertStart = Date.now();
+  await withRetry(
+    () => pineconeIndex.upsert({ records }),
+    { label: 'pinecone-upsert', maxRetries: 2, baseDelay: 2000 }
+  );
+  const upsertTime = Date.now() - upsertStart;
+  totalUpserted = records.length;
+  console.log(`  [UPSERT] ${totalUpserted} vectors upserted | ${upsertTime}ms`);
 
   try { fs.unlinkSync(filePath); } catch {}
 
@@ -403,11 +495,15 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
   // Step 1: Embed query
   checkDeadline('embed-query');
   const embedStart = Date.now();
-  const embeddings = getEmbeddings();
-  const queryVector = await withRetry(
-    () => embeddings.embedQuery(question),
-    { label: 'embed-query', maxRetries: 1, baseDelay: 1000 }
+  const model = getEmbedModel();
+  const embedResponse = await withRetry(
+    () => model.embedContent(question),
+    { label: 'embed-query', maxRetries: 2, baseDelay: 1000 }
   );
+  const queryVector = embedResponse.embedding.values;
+  if (!queryVector || queryVector.length === 0) {
+    throw new Error('Query embedding returned empty vector');
+  }
   const embedTime = Date.now() - embedStart;
   const keywords = extractKeywords(question);
   console.log(`  [EMBED] ${queryVector.length}d vector | ${embedTime}ms`);
