@@ -14,7 +14,7 @@ export default function GoogleAuthButton({ label = 'Continue with Google', disab
     <button
       onClick={handleClick}
       disabled={loading || disabled}
-      className="w-full flex items-center justify-center gap-3 px-6 py-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-750 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+      className="w-full flex items-center justify-center gap-3 px-6 py-3.5 rounded-2xl bg-white dark:bg-card border border-slate-200 dark:border-border text-slate-700 dark:text-fg font-medium hover:bg-slate-50 dark:hover:bg-card-hover transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
     >
       {loading ? (
         <Loader2 className="w-5 h-5 animate-spin" />

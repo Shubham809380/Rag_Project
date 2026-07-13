@@ -46,7 +46,7 @@ const fileTypes = [
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen text-white" style={{ background: 'var(--bg-base)' }}>
+    <div className="min-h-screen text-fg" style={{ background: 'var(--bg-base)' }}>
       <LandingNavbar />
 
       {/* Hero */}
@@ -81,7 +81,7 @@ export default function LandingPage() {
               Using AI
             </h1>
 
-            <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
+            <p className="text-lg sm:text-xl text-fg-secondary max-w-2xl mx-auto leading-relaxed mb-10">
               Upload multiple documents, ask questions, and get accurate AI-powered answers based on your files.
             </p>
 
@@ -95,7 +95,7 @@ export default function LandingPage() {
               </Link>
               <button
                 onClick={() => document.querySelector('#preview')?.scrollIntoView({ behavior: 'smooth' })}
-                className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-semibold text-slate-300 border border-slate-700 hover:border-slate-500 hover:bg-white/5 transition-all duration-300"
+                className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-semibold text-fg-secondary border border-border hover:border-fg-muted hover:bg-card-hover transition-all duration-300"
               >
                 View Demo
               </button>
@@ -112,9 +112,9 @@ export default function LandingPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className="relative rounded-3xl bg-slate-900/50 border border-slate-800/50 p-1 overflow-hidden"
+            className="relative rounded-3xl bg-card border border-border p-1 overflow-hidden"
           >
-            <div className="rounded-2xl bg-slate-900 p-6 sm:p-8">
+            <div className="rounded-2xl bg-card p-6 sm:p-8">
               <div className="flex items-center gap-2 mb-6">
                 <div className="w-3 h-3 rounded-full bg-red-500/80" />
                 <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
@@ -122,12 +122,12 @@ export default function LandingPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 {['document1.pdf', 'report.docx', 'notes.txt'].map((name) => (
-                  <div key={name} className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                  <div key={name} className="flex items-center gap-3 p-3 rounded-xl bg-surface border border-border">
                     <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
                       <FileText className="w-5 h-5 text-blue-400" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-white truncate">{name}</p>
+                      <p className="text-sm font-medium text-fg truncate">{name}</p>
                       <p className="text-xs text-green-400 flex items-center gap-1">
                         <CheckCircle className="w-3 h-3" /> Ready
                       </p>
@@ -135,11 +135,11 @@ export default function LandingPage() {
                   </div>
                 ))}
               </div>
-              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50 mb-4">
-                <p className="text-sm text-slate-400">Ask: What are the main findings in these documents?</p>
+              <div className="p-4 rounded-xl bg-surface border border-border mb-4">
+                <p className="text-sm text-fg-secondary">Ask: What are the main findings in these documents?</p>
               </div>
               <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
-                <p className="text-sm text-slate-300 leading-relaxed">
+                <p className="text-sm text-fg-secondary leading-relaxed">
                   Based on the uploaded documents, the main findings include several key insights across all three files. The analysis reveals consistent patterns...
                 </p>
               </div>
@@ -163,7 +163,7 @@ export default function LandingPage() {
                 Analyze Documents
               </span>
             </h2>
-            <p className="text-slate-400 max-w-xl mx-auto">
+            <p className="text-fg-secondary max-w-xl mx-auto">
               Powerful features designed to help you extract insights from your documents faster than ever.
             </p>
           </motion.div>
@@ -177,13 +177,13 @@ export default function LandingPage() {
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.05 }}
                 whileHover={{ y: -4 }}
-                className="p-6 rounded-2xl bg-slate-900/50 border border-slate-800/50 hover:border-blue-500/30 hover:bg-slate-900/80 transition-all duration-300 group"
+                className="p-6 rounded-2xl bg-card border border-border hover:border-blue-500/30 hover:bg-card-hover transition-all duration-300 group"
               >
                 <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center mb-4 group-hover:bg-blue-500/20 transition-colors">
                   <feature.icon className="w-6 h-6 text-blue-400" />
                 </div>
-                <h3 className="font-semibold text-white mb-2">{feature.title}</h3>
-                <p className="text-sm text-slate-400 leading-relaxed">{feature.desc}</p>
+                <h3 className="font-semibold text-heading mb-2">{feature.title}</h3>
+                <p className="text-sm text-fg-secondary leading-relaxed">{feature.desc}</p>
               </motion.div>
             ))}
           </div>
@@ -191,7 +191,7 @@ export default function LandingPage() {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="py-16 sm:py-24 bg-slate-900/30">
+      <section id="how-it-works" className="py-16 sm:py-24 bg-surface">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -205,7 +205,7 @@ export default function LandingPage() {
                 Works
               </span>
             </h2>
-            <p className="text-slate-400 max-w-xl mx-auto">
+            <p className="text-fg-secondary max-w-xl mx-auto">
               Get started in three simple steps. No complex setup required.
             </p>
           </motion.div>
@@ -226,8 +226,8 @@ export default function LandingPage() {
                     {step.num}
                   </span>
                 </div>
-                <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
-                <p className="text-sm text-slate-400 leading-relaxed max-w-xs mx-auto">{step.desc}</p>
+                <h3 className="text-lg font-semibold text-heading mb-2">{step.title}</h3>
+                <p className="text-sm text-fg-secondary leading-relaxed max-w-xs mx-auto">{step.desc}</p>
               </motion.div>
             ))}
           </div>
@@ -253,7 +253,7 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-            <p className="text-sm text-slate-500 mt-4">
+            <p className="text-sm text-fg-muted mt-4">
               Support for more file types may be added in future updates.
             </p>
           </motion.div>
@@ -261,7 +261,7 @@ export default function LandingPage() {
       </section>
 
       {/* Use Cases */}
-      <section id="use-cases" className="py-16 sm:py-24 bg-slate-900/30">
+      <section id="use-cases" className="py-16 sm:py-24 bg-surface">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -275,7 +275,7 @@ export default function LandingPage() {
                 Everyone
               </span>
             </h2>
-            <p className="text-slate-400 max-w-xl mx-auto">
+            <p className="text-fg-secondary max-w-xl mx-auto">
               InsightRAG is used by professionals across various industries and roles.
             </p>
           </motion.div>
@@ -289,13 +289,13 @@ export default function LandingPage() {
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.05 }}
                 whileHover={{ y: -3 }}
-                className="p-6 rounded-2xl bg-slate-900/50 border border-slate-800/50 hover:border-purple-500/30 transition-all duration-300"
+                className="p-6 rounded-2xl bg-card border border-border hover:border-purple-500/30 transition-all duration-300"
               >
                 <div className="w-11 h-11 rounded-xl bg-purple-500/10 flex items-center justify-center mb-4">
                   <uc.icon className="w-5 h-5 text-purple-400" />
                 </div>
-                <h3 className="font-semibold text-white mb-2">{uc.title}</h3>
-                <p className="text-sm text-slate-400 leading-relaxed">{uc.desc}</p>
+                <h3 className="font-semibold text-heading mb-2">{uc.title}</h3>
+                <p className="text-sm text-fg-secondary leading-relaxed">{uc.desc}</p>
               </motion.div>
             ))}
           </div>
@@ -318,7 +318,7 @@ export default function LandingPage() {
               </span>{' '}
               Manually
             </h2>
-            <p className="text-slate-400 mb-8 max-w-lg mx-auto">
+            <p className="text-fg-secondary mb-8 max-w-lg mx-auto">
               Upload your documents and let InsightRAG find the information for you.
             </p>
             <Link

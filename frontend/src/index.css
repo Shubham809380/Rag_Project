@@ -2,43 +2,51 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ─── Tailwind Theme: CSS variable driven ─── */
 @theme {
   --color-primary: #3B82F6;
   --color-secondary: #8B5CF6;
   --color-accent: #22D3EE;
-  --color-bg: #070B14;
-  --color-sidebar: #0B1220;
-  --color-header: rgba(11, 18, 32, 0.88);
-  --color-card: #111A2C;
-  --color-card-hover: #162036;
-  --color-border: rgba(148, 163, 184, 0.12);
-  --color-border-strong: rgba(148, 163, 184, 0.22);
-  --color-text: #E2E8F0;
-  --color-text-secondary: #94A3B8;
-  --color-text-muted: #64748B;
   --color-success: #22C55E;
   --color-error: #EF4444;
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-card: var(--c-card);
+  --color-card-hover: var(--c-card-hover);
+  --color-border: var(--c-border);
+  --color-fg: var(--c-fg);
+  --color-fg-secondary: var(--c-fg-secondary);
+  --color-fg-muted: var(--c-fg-muted);
 }
 
-/* ─── Light/Dark Theme Variables ─── */
+/* ─── Light mode (base/default) ─── */
 :root {
+  --c-bg: #f8fafc;
+  --c-surface: #ffffff;
+  --c-card: #ffffff;
+  --c-card-hover: #f1f5f9;
+  --c-border: rgba(0, 0, 0, 0.1);
+  --c-fg: #1e293b;
+  --c-fg-secondary: #475569;
+  --c-fg-muted: #94a3b8;
+
   --bg-base: #f8fafc;
   --bg-sidebar: #ffffff;
   --bg-card: #ffffff;
   --bg-card-hover: #f1f5f9;
-  --bg-glass: rgba(255, 255, 255, 0.82);
+  --bg-glass: rgba(255, 255, 255, 0.88);
   --bg-input: #f1f5f9;
   --bg-tooltip: #1e293b;
   --text-primary: #1e293b;
-  --text-secondary: #64748b;
+  --text-secondary: #475569;
   --text-muted: #94a3b8;
   --text-heading: #0f172a;
   --text-inverse: #ffffff;
   --border-subtle: rgba(0, 0, 0, 0.06);
   --border-default: rgba(0, 0, 0, 0.1);
   --border-strong: rgba(0, 0, 0, 0.15);
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
   --skeleton-from: #e2e8f0;
   --skeleton-mid: #f1f5f9;
   --scrollbar-track: transparent;
@@ -46,7 +54,17 @@
   --scrollbar-hover: #94a3b8;
 }
 
+/* ─── Dark mode ─── */
 .dark {
+  --c-bg: #070B14;
+  --c-surface: #0B1220;
+  --c-card: #111A2C;
+  --c-card-hover: #162036;
+  --c-border: rgba(148, 163, 184, 0.12);
+  --c-fg: #E2E8F0;
+  --c-fg-secondary: #94A3B8;
+  --c-fg-muted: #475569;
+
   --bg-base: #070B14;
   --bg-sidebar: #0B1220;
   --bg-card: #111A2C;

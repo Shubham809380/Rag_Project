@@ -20,10 +20,10 @@ export default function NotFound() {
         >
           {error?.status || 404}
         </motion.div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-3">
+        <h1 className="text-2xl sm:text-3xl font-bold text-heading mb-3">
           {error?.status === 404 ? 'Page Not Found' : 'Something went wrong'}
         </h1>
-        <p className="text-slate-400 mb-8 max-w-md mx-auto">
+        <p className="text-fg-secondary mb-8 max-w-md mx-auto">
           {error?.status === 404
             ? "The page you're looking for doesn't exist or has been moved."
             : error?.message || 'An unexpected error occurred.'}
@@ -33,7 +33,7 @@ export default function NotFound() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => window.history.back()}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700 transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-surface text-fg-secondary font-medium hover:bg-card-hover transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Go Back

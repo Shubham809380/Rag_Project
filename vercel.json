@@ -1,7 +1,6 @@
 {
-  "buildCommand": "npm install && cd frontend && npm install && npm run build",
+  "buildCommand": "npm install && npm install --prefix frontend --include=dev && cd frontend && node node_modules/vite/bin/vite.js build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "npm install",
   "framework": null,
   "functions": {
     "api/index.js": {

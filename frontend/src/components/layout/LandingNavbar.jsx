@@ -42,7 +42,7 @@ export default function LandingNavbar() {
             <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:shadow-blue-500/40 transition-shadow">
               <FileSearch className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold text-white">InsightRAG</span>
+            <span className="text-lg font-bold text-heading">InsightRAG</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-1">
@@ -50,7 +50,7 @@ export default function LandingNavbar() {
               <button
                 key={link.href}
                 onClick={() => scrollTo(link.href)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all duration-200"
+                className="px-4 py-2 rounded-xl text-sm font-medium text-fg-secondary hover:text-fg hover:bg-card-hover transition-all duration-200"
               >
                 {link.label}
               </button>
@@ -60,7 +60,7 @@ export default function LandingNavbar() {
           <div className="hidden md:flex items-center gap-3">
             <Link
               to="/login"
-              className="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white transition-colors"
+              className="px-4 py-2 rounded-xl text-sm font-medium text-fg-secondary hover:text-fg transition-colors"
             >
               Login
             </Link>
@@ -74,7 +74,7 @@ export default function LandingNavbar() {
 
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="md:hidden w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-white"
+            className="md:hidden w-9 h-9 rounded-xl bg-surface flex items-center justify-center text-fg"
           >
             {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -95,7 +95,7 @@ export default function LandingNavbar() {
                 <button
                   key={link.href}
                   onClick={() => scrollTo(link.href)}
-                  className="block w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                  className="block w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium text-fg-secondary hover:text-fg hover:bg-card-hover transition-colors"
                 >
                   {link.label}
                 </button>
@@ -104,7 +104,7 @@ export default function LandingNavbar() {
                 <Link
                   to="/login"
                   onClick={() => setMobileOpen(false)}
-                  className="block px-4 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                  className="block px-4 py-2.5 rounded-xl text-sm font-medium text-fg-secondary hover:text-fg hover:bg-card-hover transition-colors"
                 >
                   Login
                 </Link>

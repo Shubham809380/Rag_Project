@@ -85,12 +85,12 @@ export default function ChatSidebar({ conversations, activeId, onSelect, onNewCh
     <div className="h-full flex flex-col" style={{ width: w, minWidth: w, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border-subtle)' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-3 shrink-0" style={{ minHeight: 56 }}>
-        {!collapsed && <span className="text-[13px] font-semibold text-slate-300">Conversations</span>}
+        {!collapsed && <span className="text-[13px] font-semibold text-fg-secondary">Conversations</span>}
         <div className="flex items-center gap-0.5">
-          <button onClick={onToggleCollapse} className="hidden md:flex p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors focus-ring" title={collapsed ? 'Expand' : 'Collapse'}>
+          <button onClick={onToggleCollapse} className="hidden md:flex p-2 rounded-lg text-fg-muted hover:text-fg hover:bg-card-hover transition-colors focus-ring" title={collapsed ? 'Expand' : 'Collapse'}>
             {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
-          <button onClick={onClose} className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"><X size={16} /></button>
+          <button onClick={onClose} className="md:hidden p-2 rounded-lg text-fg-muted hover:text-fg hover:bg-card-hover transition-colors"><X size={16} /></button>
         </div>
       </div>
 
@@ -111,9 +111,9 @@ export default function ChatSidebar({ conversations, activeId, onSelect, onNewCh
       {!collapsed && (
         <div className="px-3 pb-2.5 shrink-0">
           <div className="flex items-center gap-2 rounded-lg px-3 py-2 transition-all" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)' }}>
-            <Search size={13} className="text-slate-500 shrink-0" />
+            <Search size={13} className="text-fg-muted shrink-0" />
             <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..." className="bg-transparent text-[13px] text-slate-200 placeholder-slate-600 focus:outline-none w-full" />
+              placeholder="Search..." className="bg-transparent text-[13px] text-fg placeholder-fg-muted focus:outline-none w-full" />
             <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded" style={{ background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}>
               Ctrl+K
             </kbd>
@@ -158,7 +158,7 @@ export default function ChatSidebar({ conversations, activeId, onSelect, onNewCh
                           <input type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
                             onBlur={() => saveRename(conv.id)} onKeyDown={(e) => { if (e.key === 'Enter') saveRename(conv.id); if (e.key === 'Escape') setRenamingId(null); }}
                             onClick={(e) => e.stopPropagation()} autoFocus
-                            className="w-full bg-transparent text-[13px] text-white focus:outline-none rounded px-1"
+                            className="w-full bg-transparent text-[13px] text-fg focus:outline-none rounded px-1"
                             style={{ border: '1px solid rgba(59,130,246,0.4)' }}
                           />
                         ) : (
@@ -230,14 +230,14 @@ export default function ChatSidebar({ conversations, activeId, onSelect, onNewCh
           {!collapsed && (
             <>
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-medium text-slate-300 truncate">{user?.full_name || 'User'}</p>
+                <p className="text-[12px] font-medium text-fg-secondary truncate">{user?.full_name || 'User'}</p>
                 <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
               </div>
               <div className="flex items-center gap-0.5">
-                <button onClick={() => navigate('/profile')} className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors" title="Settings">
+                <button onClick={() => navigate('/profile')} className="p-1.5 rounded-lg text-fg-muted hover:text-fg-secondary hover:bg-card-hover transition-colors" title="Settings">
                   <Settings size={13} />
                 </button>
-                <button onClick={handleLogout} className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-white/5 transition-colors" title="Sign out">
+                <button onClick={handleLogout} className="p-1.5 rounded-lg text-fg-muted hover:text-red-400 hover:bg-card-hover transition-colors" title="Sign out">
                   <LogOut size={13} />
                 </button>
               </div>

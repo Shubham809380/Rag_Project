@@ -89,7 +89,7 @@ export default function ChatView({ messages = [], onSend, isLoading, onOpenDocs,
             {/* Heading */}
             <motion.div initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2, duration: 0.5 }}
               className="text-center max-w-lg">
-              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2.5 leading-tight">
+              <h1 className="text-2xl sm:text-3xl font-bold text-heading mb-2.5 leading-tight">
                 How can I help with your <span className="gradient-text">documents?</span>
               </h1>
               <p className="text-[14px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
@@ -129,7 +129,7 @@ export default function ChatView({ messages = [], onSend, isLoading, onOpenDocs,
                     <action.icon size={16} style={{ color: action.color }} />
                   </div>
                   <div>
-                    <span className="text-[13px] font-semibold text-white block">{action.label}</span>
+                    <span className="text-[13px] font-semibold text-fg block">{action.label}</span>
                     <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{action.desc}</span>
                   </div>
                 </motion.button>
@@ -159,7 +159,7 @@ export default function ChatView({ messages = [], onSend, isLoading, onOpenDocs,
             <TipButton icon={Paperclip} label="Attach file" onClick={onOpenDocs} />
             <textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
               placeholder="Ask about your documents..." rows={1} aria-label="Chat input"
-              className="max-h-40 min-h-[36px] flex-1 resize-none bg-transparent py-1.5 text-[14px] text-white placeholder-slate-500 focus:outline-none leading-6" />
+              className="max-h-40 min-h-[36px] flex-1 resize-none bg-transparent py-1.5 text-[14px] text-fg placeholder-fg-muted focus:outline-none leading-6" />
             <button onClick={handleSubmit} disabled={!input.trim() || isLoading} aria-label="Send message"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white transition-all disabled:cursor-not-allowed disabled:opacity-25 focus-ring"
               style={{

@@ -57,12 +57,12 @@ export default function DocumentPanel({ documents = [], onDelete, isOpen, onClos
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: '1px solid rgba(148,163,184,0.08)' }}>
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-white">Documents</h2>
+          <h2 className="text-sm font-semibold text-heading">Documents</h2>
           <span className="px-2 py-0.5 text-[11px] font-medium rounded-full" style={{ background: 'rgba(59,130,246,0.12)', color: '#3B82F6' }}>
             {documents.length}
           </span>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors" title="Close documents">
+        <button onClick={onClose} className="p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-card-hover transition-colors" title="Close documents">
           <X size={16} />
         </button>
       </div>
@@ -122,7 +122,7 @@ export default function DocumentPanel({ documents = [], onDelete, isOpen, onClos
                       <FileText size={16} style={{ color }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate" title={doc.file_name}>{doc.file_name}</p>
+                      <p className="text-sm font-medium text-fg truncate" title={doc.file_name}>{doc.file_name}</p>
                       <div className="flex items-center gap-2.5 mt-1 text-[10px]" style={{ color: '#475569' }}>
                         <span className="flex items-center gap-1"><Database size={10} />{doc.chunk_count} chunks</span>
                         <span className="flex items-center gap-1"><Calendar size={10} />{formatDate(doc.created_at)}</span>

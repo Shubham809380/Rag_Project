@@ -41,7 +41,7 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, title, messag
               <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(239,68,68,0.1)' }}>
                 <AlertTriangle size={20} style={{ color: '#EF4444' }} />
               </div>
-              <h3 className="text-lg font-semibold text-white">{title}</h3>
+              <h3 className="text-lg font-semibold text-heading">{title}</h3>
             </div>
             <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>{message}</p>
             <div className="flex gap-3 justify-end">

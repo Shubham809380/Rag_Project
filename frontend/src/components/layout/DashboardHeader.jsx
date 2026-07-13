@@ -16,7 +16,7 @@ export default function DashboardHeader({ onToggleSidebar = () => {}, onToggleDo
     <header className="shrink-0 flex items-center justify-between px-4 h-14 z-30 glass"
       style={{ borderBottom: '1px solid var(--border-subtle)' }}>
       <div className="flex items-center gap-2">
-        <button onClick={onToggleSidebar} className="md:hidden p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors focus-ring"
+        <button onClick={onToggleSidebar} className="md:hidden p-2 rounded-lg text-fg-muted hover:text-fg hover:bg-card-hover transition-colors focus-ring"
           title="Open sidebar">
           <PanelLeft size={17} />
         </button>
@@ -25,7 +25,7 @@ export default function DashboardHeader({ onToggleSidebar = () => {}, onToggleDo
             style={{ background: 'linear-gradient(135deg, #3B82F6, #22D3EE)', boxShadow: '0 2px 8px rgba(59,130,246,0.25)' }}>
             <FileSearch className="w-4 h-4 text-white" />
           </div>
-          <span className="text-[15px] font-bold text-white hidden sm:block">InsightRAG</span>
+          <span className="text-[15px] font-bold text-heading hidden sm:block">InsightRAG</span>
         </Link>
       </div>
 

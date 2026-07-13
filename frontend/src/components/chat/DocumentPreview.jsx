@@ -16,19 +16,19 @@ export default function DocumentPreview({ source, isOpen, onClose }) {
             <FileText size={14} style={{ color: '#3B82F6' }} />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-white truncate">{source.document}</p>
+            <p className="text-sm font-medium text-fg truncate">{source.document}</p>
             {source.page && <p className="text-[11px]" style={{ color: '#64748B' }}>Page {source.page}</p>}
           </div>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setExpanded((v) => !v)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors hidden md:block"
+            className="p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-card-hover transition-colors hidden md:block"
             title={expanded ? 'Collapse' : 'Expand'}
           >
             {expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
           </button>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors" title="Close">
+          <button onClick={onClose} className="p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-card-hover transition-colors" title="Close">
             <X size={16} />
           </button>
         </div>
@@ -39,7 +39,7 @@ export default function DocumentPreview({ source, isOpen, onClose }) {
         {source.section && (
           <div className="mb-3">
             <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>Section</span>
-            <p className="text-sm font-medium text-white mt-1">{source.section}</p>
+            <p className="text-sm font-medium text-fg mt-1">{source.section}</p>
           </div>
         )}
         <div className="mb-3">
