@@ -113,7 +113,8 @@ export default function DashboardPage() {
       const res = await uploadDocument(file);
       const first = res?.files?.[0];
       if (first?.error) {
-        toast.error(`${file.name}: ${first.error}`, { id: t, duration: 6000 });
+        const detail = first.debug ? ` (pages=${first.debug.pages}, size=${first.debug.fileSize}B)` : '';
+        toast.error(`${file.name}: ${first.error}${detail}`, { id: t, duration: 8000 });
       } else {
         toast.success(`${file.name} uploaded! ${first?.chunks ?? ''} chunks`, { id: t });
       }

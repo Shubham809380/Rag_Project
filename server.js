@@ -549,6 +549,7 @@ app.post('/api/upload', authenticateToken, (req, res) => {
       const results = [];
       for (const file of files) {
         console.log(`\n[UPLOAD] Processing: ${file.originalname} (${(file.size / 1024).toFixed(1)} KB)`);
+        console.log(`[UPLOAD] Temp path: ${file.path}`);
         const fileStart = Date.now();
 
         let result;
@@ -568,7 +569,7 @@ app.post('/api/upload', authenticateToken, (req, res) => {
         }
 
         const fileElapsed = Date.now() - fileStart;
-        console.log(`[UPLOAD] Done: ${file.originalname} - ${result.chunks} chunks in ${fileElapsed}ms`);
+        console.log(`[UPLOAD] Done: ${file.originalname} - ${result.chunks} chunks, pages=${result.pages} in ${fileElapsed}ms`);
 
         if (!result.chunks || result.chunks === 0) {
           console.warn(`[UPLOAD] WARNING: 0 chunks for ${file.originalname}. Document NOT saved to DB.`);
@@ -579,6 +580,7 @@ app.post('/api/upload', authenticateToken, (req, res) => {
             pages: result.pages,
             chunks: 0,
             error: result.error || 'No readable text could be extracted from this document.',
+            debug: { fileSize: file.size, mimeType: file.mimetype, pages: result.pages },
           });
           continue;
         }

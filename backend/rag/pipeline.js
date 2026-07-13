@@ -195,6 +195,7 @@ function parseTXT(filePath) {
     const raw = fs.readFileSync(filePath);
     text = raw.toString('latin1');
   }
+  console.log(`  [PARSE-TXT] File: ${filePath} | Size: ${fs.statSync(filePath).size} bytes | Chars: ${text.length} | Preview: "${text.substring(0, 200).replace(/\n/g, '\\n')}"`);
   return [{ pageNumber: 1, text }];
 }
 
