@@ -113,8 +113,11 @@ export default function DashboardPage() {
       const res = await uploadDocument(file);
       const first = res?.files?.[0];
       if (first?.error) {
-        const detail = first.debug ? ` (pages=${first.debug.pages}, size=${first.debug.fileSize}B)` : '';
-        toast.error(`${file.name}: ${first.error}${detail}`, { id: t, duration: 8000 });
+        const extra = [];
+        if (first.debug) extra.push(`pages=${first.debug.pages}, size=${first.debug.fileSize}B`);
+        if (first.totalChars != null) extra.push(`chars=${first.totalChars}`);
+        if (first.chunkCount != null) extra.push(`chunked=${first.chunkCount}`);
+        toast.error(`${file.name}: ${first.error}${extra.length ? ' [' + extra.join(', ') + ']' : ''}`, { id: t, duration: 10000 });
       } else {
         toast.success(`${file.name} uploaded! ${first?.chunks ?? ''} chunks`, { id: t });
       }

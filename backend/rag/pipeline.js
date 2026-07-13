@@ -246,7 +246,7 @@ export async function ingestDocument(file, user) {
   if (totalChars === 0) {
     console.error(`  [ERROR] No text extracted from ${fileName}`);
     try { fs.unlinkSync(filePath); } catch {}
-    return { fileId, fileName, pages: totalPages, chunks: 0, error: 'No readable text was extracted from this document.' };
+    return { fileId, fileName, pages: totalPages, chunks: 0, totalChars: 0, chunkCount: 0, error: 'No readable text was extracted from this document.' };
   }
 
   // Step 2: Chunk (700-1000 chars, 150-200 overlap)
@@ -263,7 +263,7 @@ export async function ingestDocument(file, user) {
   if (chunks.length === 0) {
     console.error(`  [ERROR] 0 chunks produced from ${totalChars} chars for ${fileName}`);
     try { fs.unlinkSync(filePath); } catch {}
-    return { fileId, fileName, pages: totalPages, chunks: 0, error: 'Document text was too short to create meaningful chunks.' };
+    return { fileId, fileName, pages: totalPages, chunks: 0, totalChars, chunkCount: 0, error: `Text extracted (${totalChars} chars) but too short to create chunks.` };
   }
 
   // Step 3: Embed & Store (with retries)
@@ -328,7 +328,11 @@ export async function ingestDocument(file, user) {
   console.log(`  [DONE] ${totalUpserted} vectors upserted, ${totalSkipped} skipped | Total: ${totalTime}ms`);
   console.log(`${'='.repeat(60)}\n`);
 
-  return { fileId, fileName, pages: totalPages, chunks: totalUpserted };
+  if (totalUpserted === 0) {
+    return { fileId, fileName, pages: totalPages, chunks: 0, totalChars, chunkCount: chunks.length, error: `Parsed ${totalChars} chars into ${chunks.length} chunks but all embeddings failed (${totalSkipped} skipped). Check API key.` };
+  }
+
+  return { fileId, fileName, pages: totalPages, chunks: totalUpserted, totalChars, chunkCount: chunks.length };
 }
 
 // --- HYBRID QUERY PIPELINE ---
