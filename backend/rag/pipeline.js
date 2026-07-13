@@ -9,8 +9,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import mammoth from 'mammoth';
-import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
 import { GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { chunkByPages } from './chunker.js';
@@ -166,6 +164,7 @@ function cosineSimilarity(a, b) {
 // --- DOCUMENT PARSING ---
 
 async function parsePDF(filePath) {
+  const { PDFLoader } = await import('@langchain/community/document_loaders/fs/pdf');
   const loader = new PDFLoader(filePath);
   const docs = await loader.load();
   const pageMap = {};
@@ -181,6 +180,7 @@ async function parsePDF(filePath) {
 }
 
 async function parseDOCX(filePath) {
+  const mammoth = await import('mammoth');
   const result = await mammoth.extractRawText({ path: filePath });
   const text = result.value;
   const pages = text.split(/\f/);
