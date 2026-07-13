@@ -30,10 +30,10 @@ const EMBED_MODEL = 'gemini-embedding-001';
 // --- Retry helper ---
 
 const isVercel = !!process.env.VERCEL;
-const PIPELINE_TIMEOUT_MS = isVercel ? 45000 : 120000;
+const PIPELINE_TIMEOUT_MS = isVercel ? 50000 : 120000;
 
 async function withRetry(fn, { label = 'operation', maxRetries = 3, baseDelay = 1000, maxDelay = 15000 } = {}) {
-  const retries = isVercel ? Math.min(maxRetries, 2) : maxRetries;
+  const retries = isVercel ? 1 : maxRetries;
   let lastError;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -375,7 +375,7 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
   const embeddings = getEmbeddings();
   const queryVector = await withRetry(
     () => embeddings.embedQuery(question),
-    { label: 'embed-query', maxRetries: 2, baseDelay: 1000 }
+    { label: 'embed-query', maxRetries: 1, baseDelay: 1000 }
   );
   const keywords = extractKeywords(question);
   console.log(`\n  [QUERY] Keywords: [${keywords.join(', ')}]`);
@@ -395,7 +395,7 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
       includeMetadata: true,
       filter,
     }),
-    { label: 'pinecone-query', maxRetries: 2, baseDelay: 1000 }
+    { label: 'pinecone-query', maxRetries: 1, baseDelay: 1000 }
   );
 
   const matches = queryResponse.matches || [];
@@ -462,34 +462,27 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
   // Step 7: Call LLM (with retries per model)
   let llmResponse = null;
   let usedModel = null;
-  const llmMaxRetries = isVercel ? 1 : 2;
+  const llmModels = isVercel ? LLM_MODELS.slice(0, 1) : LLM_MODELS;
 
-  for (const modelName of LLM_MODELS) {
+  for (const modelName of llmModels) {
     checkDeadline(`llm-${modelName}`);
     try {
       const llm = new ChatGoogleGenerativeAI({
         apiKey: process.env.GEMINI_API_KEY,
         model: modelName,
         temperature: 0.2,
-        maxRetries: 1,
-        timeout: isVercel ? 25000 : 60000,
+        maxRetries: 0,
+        timeout: isVercel ? 20000 : 60000,
       });
 
       console.log(`  [LLM] Trying ${modelName}...`);
-      llmResponse = await withRetry(
-        () => llm.invoke(llmMessages),
-        { label: `llm-${modelName}`, maxRetries: llmMaxRetries, baseDelay: 2000, maxDelay: 5000 }
-      );
+      llmResponse = await llm.invoke(llmMessages);
       usedModel = modelName;
       console.log(`  [LLM] OK via ${modelName}`);
       break;
     } catch (err) {
       const status = err.status || err.statusCode || 0;
       console.log(`  [LLM] FAIL ${modelName}: status=${status} ${err.message ? err.message.substring(0, 80) : ''}`);
-      if (status === 429 || status === 503) {
-        console.log(`  [LLM] Rate limited, waiting 2s before next model...`);
-        await new Promise(r => setTimeout(r, 2000));
-      }
     }
   }
 
