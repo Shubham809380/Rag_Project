@@ -9,7 +9,6 @@ import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
 import bcrypt from 'bcrypt';
 import pool from './backend/db.js';
-import { ingestDocument, getPineconeIndex, queryPipeline } from './backend/rag/pipeline.js';
 import {
   buildAuthConfig,
   clearAuthCookie,
@@ -19,6 +18,15 @@ import {
   getRequestToken,
   setAuthCookie,
 } from './backend/routes/authRoutes.js';
+
+// Lazy-loaded heavy modules (loaded on first use, not at cold start)
+let _pipelineModule = null;
+async function getPipeline() {
+  if (!_pipelineModule) {
+    _pipelineModule = await import('./backend/rag/pipeline.js');
+  }
+  return _pipelineModule;
+}
 
 dotenv.config();
 
@@ -416,7 +424,7 @@ app.get('/api/documents', authenticateToken, async (req, res) => {
 app.delete('/api/documents/:id', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, pinecone_file_id FROM documents WHERE id = $1 AND user_id = $2',
+      'SELECT id, pinecone_file_id, file_name FROM documents WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ message: 'Document not found' });
@@ -424,10 +432,12 @@ app.delete('/api/documents/:id', authenticateToken, async (req, res) => {
     const doc = result.rows[0];
 
     try {
-      const pineconeIndex = getPineconeIndex();
+      const pipeline = await getPipeline();
+      const pineconeIndex = pipeline.getPineconeIndex();
       await pineconeIndex.deleteMany({ filter: { fileId: doc.pinecone_file_id } });
+      console.log(`[DELETE] Pinecone vectors deleted for ${doc.file_name}`);
     } catch (pineErr) {
-      console.error('Pinecone delete error:', pineErr.message);
+      console.error('[DELETE] Pinecone delete error:', pineErr.message);
     }
 
     await pool.query('DELETE FROM documents WHERE id = $1', [doc.id]);
@@ -522,12 +532,9 @@ if (!isVercel && !fs.existsSync(path.join(__dirname, 'uploads'))) {
   fs.mkdirSync(path.join(__dirname, 'uploads'));
 }
 
-async function processFile(file, user) {
-  return ingestDocument(file, user);
-}
-
 app.post('/api/upload', authenticateToken, (req, res) => {
   uploadMultiple(req, res, async (err) => {
+    const uploadStart = Date.now();
     try {
       if (err) {
         return res.status(400).json({ message: 'Upload error: ' + err.message });
@@ -538,10 +545,43 @@ app.post('/api/upload', authenticateToken, (req, res) => {
         return res.status(400).json({ message: 'No files uploaded' });
       }
 
+      const pipeline = await getPipeline();
       const results = [];
       for (const file of files) {
-        const result = await processFile(file, req.user);
-        results.push(result);
+        console.log(`\n[UPLOAD] Processing: ${file.originalname} (${(file.size / 1024).toFixed(1)} KB)`);
+        const fileStart = Date.now();
+
+        let result;
+        try {
+          result = await pipeline.ingestDocument(file, req.user);
+        } catch (ingestErr) {
+          console.error(`[UPLOAD] Ingest failed for ${file.originalname}:`, ingestErr.message);
+          try { fs.unlinkSync(file.path); } catch {}
+          results.push({
+            fileId: null,
+            fileName: file.originalname,
+            pages: 0,
+            chunks: 0,
+            error: ingestErr.message,
+          });
+          continue;
+        }
+
+        const fileElapsed = Date.now() - fileStart;
+        console.log(`[UPLOAD] Done: ${file.originalname} - ${result.chunks} chunks in ${fileElapsed}ms`);
+
+        if (!result.chunks || result.chunks === 0) {
+          console.warn(`[UPLOAD] WARNING: 0 chunks for ${file.originalname}. Document NOT saved to DB.`);
+          try { fs.unlinkSync(file.path); } catch {}
+          results.push({
+            fileId: result.fileId,
+            fileName: result.fileName,
+            pages: result.pages,
+            chunks: 0,
+            error: 'No readable text could be extracted from this document.',
+          });
+          continue;
+        }
 
         try {
           await pool.query(
@@ -549,19 +589,28 @@ app.post('/api/upload', authenticateToken, (req, res) => {
              VALUES ($1, $2, $3, $4)`,
             [req.user.id, result.fileId, result.fileName, result.chunks]
           );
+          console.log(`[UPLOAD] Saved to DB: ${result.fileName} (${result.chunks} chunks)`);
         } catch (dbErr) {
-          console.error('Failed to save document to DB:', dbErr.message);
+          console.error('[UPLOAD] Failed to save document to DB:', dbErr.message);
         }
+
+        results.push(result);
       }
 
-      console.log(`\n=== ALL DONE: ${results.length} files indexed ===\n`);
+      const totalElapsed = Date.now() - uploadStart;
+      const successCount = results.filter(r => r.chunks > 0).length;
+      const failCount = results.filter(r => r.chunks === 0).length;
+
+      console.log(`\n[UPLOAD] COMPLETE: ${successCount} succeeded, ${failCount} failed in ${totalElapsed}ms`);
 
       res.json({
         files: results,
-        message: `${results.length} document(s) uploaded and indexed successfully`,
+        message: failCount > 0
+          ? `${successCount} document(s) uploaded. ${failCount} failed (no readable text extracted).`
+          : `${results.length} document(s) uploaded and indexed successfully`,
       });
     } catch (error) {
-      console.error('Upload error:', error.message);
+      console.error('[UPLOAD] Fatal error:', error.message);
       res.status(500).json({ message: 'Failed to process document: ' + error.message });
     }
   });
@@ -570,6 +619,7 @@ app.post('/api/upload', authenticateToken, (req, res) => {
 // ==================== ANALYZE (MULTI-TURN) ====================
 
 app.post('/api/analyze', authenticateToken, async (req, res) => {
+  const requestStart = Date.now();
   try {
     const { question, fileId, conversationId } = req.body;
 
@@ -577,7 +627,10 @@ app.post('/api/analyze', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Question is required' });
     }
 
-    console.log(`\n=== ANALYZE: "${question}" ===`);
+    console.log(`\n=== ANALYZE: "${question}" | user=${req.user.id} | fileId=${fileId || 'all'} ===`);
+
+    const authTime = Date.now();
+    console.log(`  [TIMING] Auth: ${authTime - requestStart}ms`);
 
     let convId = conversationId;
 
@@ -599,6 +652,33 @@ app.post('/api/analyze', authenticateToken, async (req, res) => {
       [convId]
     );
 
+    const dbTime = Date.now();
+    console.log(`  [TIMING] DB writes: ${dbTime - authTime}ms`);
+
+    // Pre-query validation: check if document has chunks before running expensive pipeline
+    if (fileId) {
+      const docCheck = await pool.query(
+        'SELECT id, file_name, chunk_count FROM documents WHERE pinecone_file_id = $1 AND user_id = $2',
+        [fileId, req.user.id]
+      );
+      if (docCheck.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          code: 'DOCUMENT_NOT_FOUND',
+          message: 'Document not found.',
+        });
+      }
+      const doc = docCheck.rows[0];
+      if (!doc.chunk_count || doc.chunk_count === 0) {
+        return res.status(400).json({
+          success: false,
+          code: 'DOCUMENT_NOT_PROCESSED',
+          message: `Document "${doc.file_name}" has not been processed successfully (0 chunks). Please upload it again.`,
+        });
+      }
+      console.log(`  [VALIDATE] Document "${doc.file_name}" has ${doc.chunk_count} chunks - OK`);
+    }
+
     // Get conversation history for multi-turn context
     const historyResult = await pool.query(
       `SELECT role, message FROM chat_messages
@@ -608,14 +688,24 @@ app.post('/api/analyze', authenticateToken, async (req, res) => {
     );
     const previousMessages = historyResult.rows.slice(0, -1);
 
-    // Run the RAG pipeline
-    const result = await queryPipeline({
+    const histTime = Date.now();
+    console.log(`  [TIMING] History fetch: ${histTime - dbTime}ms`);
+
+    // Run the RAG pipeline (lazy-loaded)
+    const pipeline = await getPipeline();
+    const loadTime = Date.now();
+    console.log(`  [TIMING] Pipeline module load: ${loadTime - histTime}ms`);
+
+    const result = await pipeline.queryPipeline({
       question: question.trim(),
       fileId: fileId || null,
       userId: req.user.id,
       conversationId: convId,
       previousMessages,
     });
+
+    const pipelineTime = Date.now();
+    console.log(`  [TIMING] Pipeline total: ${pipelineTime - loadTime}ms`);
 
     // Save assistant response with metadata (sources, confidence, followUps, model)
     const assistantMetadata = JSON.stringify({
@@ -638,16 +728,22 @@ app.post('/api/analyze', authenticateToken, async (req, res) => {
       );
     }
 
+    const totalTime = Date.now() - requestStart;
+    console.log(`  [TIMING] TOTAL: ${totalTime}ms | model=${result.model} | confidence=${result.confidence}`);
     console.log(`=== ANSWER READY ===\n`);
 
     res.json(result);
   } catch (error) {
-    console.error('Analyze error:', error.message);
+    const totalTime = Date.now() - requestStart;
+    console.error(`[ANALYZE] Error after ${totalTime}ms:`, error.message);
     console.error(error.stack);
 
     let userMessage = 'Analysis failed: ' + error.message;
+    let statusCode = 500;
+
     if (error.message && error.message.includes('Pipeline timeout')) {
-      userMessage = 'The request took too long. Please try a shorter question or try again later.';
+      userMessage = 'The AI service took too long to respond. Please try a shorter question or try again later.';
+      statusCode = 504;
     } else if (error.message && error.message.includes('ECONNRESET')) {
       userMessage = 'Connection lost. Please try again.';
     } else if (error.message && error.message.includes('ETIMEDOUT')) {
@@ -656,7 +752,11 @@ app.post('/api/analyze', authenticateToken, async (req, res) => {
       userMessage = 'AI service is rate-limited. Please try again in a moment.';
     }
 
-    res.status(500).json({ message: userMessage });
+    res.status(statusCode).json({
+      success: false,
+      code: statusCode === 504 ? 'AI_SERVICE_TIMEOUT' : 'ANALYSIS_FAILED',
+      message: userMessage,
+    });
   }
 });
 
@@ -781,7 +881,8 @@ app.put('/api/admin/users/:id/role', authenticateToken, isAdmin, async (req, res
 
 app.get('/api/debug', async (req, res) => {
   try {
-    const pineconeIndex = getPineconeIndex();
+    const pipeline = await getPipeline();
+    const pineconeIndex = pipeline.getPineconeIndex();
     const stats = await pineconeIndex.describeIndexStats();
     res.json(stats);
   } catch (error) {

@@ -28,7 +28,7 @@ const EMBED_MODEL = 'gemini-embedding-001';
 // --- Retry helper ---
 
 const isVercel = !!process.env.VERCEL;
-const PIPELINE_TIMEOUT_MS = isVercel ? 50000 : 120000;
+const PIPELINE_TIMEOUT_MS = isVercel ? 40000 : 120000;
 
 async function withRetry(fn, { label = 'operation', maxRetries = 3, baseDelay = 1000, maxDelay = 15000 } = {}) {
   const retries = isVercel ? 1 : maxRetries;
@@ -221,50 +221,63 @@ export async function ingestDocument(file, user) {
   const filePath = file.path;
   const fileName = file.originalname;
   const fileId = `file-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  const ingestStart = Date.now();
 
   console.log(`\n${'='.repeat(60)}`);
-  console.log(`  INGEST: ${fileName}`);
+  console.log(`  INGEST: ${fileName} (${(file.size / 1024).toFixed(1)} KB)`);
   console.log(`${'='.repeat(60)}`);
 
   // Step 1: Parse
+  const parseStart = Date.now();
   const pages = await parseDocument(filePath, fileName);
   const totalPages = pages.length;
   const totalChars = pages.reduce((sum, p) => sum + p.text.length, 0);
+  const parseTime = Date.now() - parseStart;
 
-  console.log(`\n  [PARSE] Pages: ${totalPages} | Total chars: ${totalChars.toLocaleString()}`);
+  console.log(`  [PARSE] Pages: ${totalPages} | Chars: ${totalChars.toLocaleString()} | ${parseTime}ms`);
+
+  if (totalChars === 0) {
+    console.error(`  [ERROR] No text extracted from ${fileName}`);
+    try { fs.unlinkSync(filePath); } catch {}
+    return { fileId, fileName, pages: totalPages, chunks: 0, error: 'No readable text was extracted from this document.' };
+  }
 
   // Step 2: Chunk (700-1000 chars, 150-200 overlap)
+  const chunkStart = Date.now();
   const chunks = chunkByPages(pages, {
     source: fileName,
     fileId,
     userId: user?.id || 'anonymous',
   });
+  const chunkTime = Date.now() - chunkStart;
 
-  console.log(`\n  [CHUNK] Total chunks: ${chunks.length}`);
+  console.log(`  [CHUNK] Total chunks: ${chunks.length} | ${chunkTime}ms`);
 
   if (chunks.length === 0) {
-    console.log(`  WARNING: No chunks produced`);
+    console.error(`  [ERROR] 0 chunks produced from ${totalChars} chars for ${fileName}`);
     try { fs.unlinkSync(filePath); } catch {}
-    return { fileId, fileName, pages: totalPages, chunks: 0 };
+    return { fileId, fileName, pages: totalPages, chunks: 0, error: 'Document text was too short to create meaningful chunks.' };
   }
 
   // Step 3: Embed & Store (with retries)
+  const embedStart = Date.now();
   const embeddings = getEmbeddings();
   const pineconeIndex = getPineconeIndex();
   let totalUpserted = 0;
   let totalSkipped = 0;
 
-  console.log(`\n  [EMBED & UPLOAD]`);
+  console.log(`  [EMBED & UPLOAD] ${chunks.length} chunks in ${Math.ceil(chunks.length / INGEST_BATCH)} batches`);
   for (let i = 0; i < chunks.length; i += INGEST_BATCH) {
     const batch = chunks.slice(i, i + INGEST_BATCH);
     const texts = batch.map(c => c.pageContent);
+    const batchStart = Date.now();
 
     const vectors = await withRetry(
       () => embeddings.embedDocuments(texts),
       { label: `embed-batch-${Math.floor(i/INGEST_BATCH)+1}`, maxRetries: 3, baseDelay: 2000 }
     );
 
-    console.log(`    Batch ${Math.floor(i / INGEST_BATCH) + 1}: ${batch.length} chunks -> ${vectors.length} vectors`);
+    const embedTime = Date.now() - batchStart;
 
     const records = [];
     for (let idx = 0; idx < batch.length; idx++) {
@@ -289,17 +302,23 @@ export async function ingestDocument(file, user) {
     }
 
     if (records.length > 0) {
+      const upsertStart = Date.now();
       await withRetry(
         () => pineconeIndex.upsert({ records }),
         { label: `upsert-batch-${Math.floor(i/INGEST_BATCH)+1}`, maxRetries: 3, baseDelay: 2000 }
       );
+      const upsertTime = Date.now() - upsertStart;
       totalUpserted += records.length;
+      console.log(`    Batch ${Math.floor(i / INGEST_BATCH) + 1}: ${batch.length} chunks -> ${vectors.length} vectors (embed: ${embedTime}ms, upsert: ${upsertTime}ms)`);
+    } else {
+      console.log(`    Batch ${Math.floor(i / INGEST_BATCH) + 1}: ${batch.length} chunks -> 0 records (all skipped)`);
     }
   }
 
   try { fs.unlinkSync(filePath); } catch {}
 
-  console.log(`\n  [UPLOAD] Vectors: ${totalUpserted} upserted, ${totalSkipped} skipped`);
+  const totalTime = Date.now() - ingestStart;
+  console.log(`  [DONE] ${totalUpserted} vectors upserted, ${totalSkipped} skipped | Total: ${totalTime}ms`);
   console.log(`${'='.repeat(60)}\n`);
 
   return { fileId, fileName, pages: totalPages, chunks: totalUpserted };
@@ -372,17 +391,20 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
 
   // Step 1: Embed query
   checkDeadline('embed-query');
+  const embedStart = Date.now();
   const embeddings = getEmbeddings();
   const queryVector = await withRetry(
     () => embeddings.embedQuery(question),
     { label: 'embed-query', maxRetries: 1, baseDelay: 1000 }
   );
+  const embedTime = Date.now() - embedStart;
   const keywords = extractKeywords(question);
-  console.log(`\n  [QUERY] Keywords: [${keywords.join(', ')}]`);
-  console.log(`  [EMBED] Query vector: ${queryVector.length}d`);
+  console.log(`  [EMBED] ${queryVector.length}d vector | ${embedTime}ms`);
+  console.log(`  [QUERY] Keywords: [${keywords.join(', ')}]`);
 
   // Step 2: Vector search
   checkDeadline('pinecone-query');
+  const searchStart = Date.now();
   const pineconeIndex = getPineconeIndex();
   const filter = { userId: userId };
   if (fileId) filter.fileId = fileId;
@@ -398,8 +420,25 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
     { label: 'pinecone-query', maxRetries: 1, baseDelay: 1000 }
   );
 
+  const searchTime = Date.now() - searchStart;
   const matches = queryResponse.matches || [];
-  console.log(`  [SEARCH] Pinecone returned ${matches.length} matches`);
+  console.log(`  [SEARCH] ${matches.length} matches | ${searchTime}ms`);
+
+  if (matches.length === 0) {
+    console.log(`  [RESULT] No vectors found in Pinecone for filter=${JSON.stringify(filter)}`);
+    const totalTime = Date.now() - pipelineStart;
+    console.log(`  [TIMING] Pipeline total: ${totalTime}ms (no matches)`);
+    console.log(`${'='.repeat(60)}\n`);
+    return {
+      answer: 'I couldn\'t find this information in your uploaded documents. The document may not have been processed successfully. Please try uploading it again.',
+      sources: [],
+      confidence: 'low',
+      followUps: generateFollowUps(question, ''),
+      model: null,
+      chunkCount: 0,
+      conversationId,
+    };
+  }
 
   for (let i = 0; i < Math.min(matches.length, 5); i++) {
     const m = matches[i];
@@ -408,11 +447,17 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
   }
 
   // Step 3: Hybrid rerank (vector 0.5 + keyword 0.5 + MMR + threshold + top 5-8)
-  console.log(`\n  [RERANK] Hybrid scoring + MMR diversity`);
+  const rerankStart = Date.now();
+  console.log(`  [RERANK] Hybrid scoring + MMR diversity`);
   const reranked = hybridRerank(matches, question, { maxChunks: FINAL_CHUNKS_MAX });
+  const rerankTime = Date.now() - rerankStart;
+  console.log(`  [RERANK] ${reranked.length} selected | ${rerankTime}ms`);
 
   if (reranked.length === 0) {
     console.log(`  [RESULT] No chunks after threshold - returning not found`);
+    const totalTime = Date.now() - pipelineStart;
+    console.log(`  [TIMING] Pipeline total: ${totalTime}ms (no chunks above threshold)`);
+    console.log(`${'='.repeat(60)}\n`);
     return {
       answer: 'I couldn\'t find this information in your uploaded documents.',
       sources: [],
@@ -436,7 +481,7 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
   }));
 
   const context = buildContext(contextChunks);
-  console.log(`\n  [CONTEXT] ${context.length} chars from ${contextChunks.length} chunks`);
+  console.log(`  [CONTEXT] ${context.length} chars from ${contextChunks.length} chunks`);
 
   // Step 5: Build sources for frontend
   const sources = [];
@@ -466,28 +511,34 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
 
   for (const modelName of llmModels) {
     checkDeadline(`llm-${modelName}`);
+    const llmStart = Date.now();
     try {
       const llm = new ChatGoogleGenerativeAI({
         apiKey: process.env.GEMINI_API_KEY,
         model: modelName,
         temperature: 0.2,
         maxRetries: 0,
-        timeout: isVercel ? 12000 : 60000,
+        timeout: isVercel ? 15000 : 60000,
       });
 
-      console.log(`  [LLM] Trying ${modelName}...`);
+      console.log(`  [LLM] Trying ${modelName} (timeout: ${isVercel ? 15 : 60}s)...`);
       llmResponse = await llm.invoke(llmMessages);
       usedModel = modelName;
-      console.log(`  [LLM] OK via ${modelName}`);
+      const llmTime = Date.now() - llmStart;
+      console.log(`  [LLM] OK via ${modelName} | ${llmTime}ms`);
       break;
     } catch (err) {
+      const llmTime = Date.now() - llmStart;
       const status = err.status || err.statusCode || 0;
-      console.log(`  [LLM] FAIL ${modelName}: status=${status} ${err.message ? err.message.substring(0, 80) : ''}`);
+      console.log(`  [LLM] FAIL ${modelName}: status=${status} ${llmTime}ms ${err.message ? err.message.substring(0, 100) : ''}`);
     }
   }
 
   if (!llmResponse) {
     console.log(`  [RESULT] All LLM models failed`);
+    const totalTime = Date.now() - pipelineStart;
+    console.log(`  [TIMING] Pipeline total: ${totalTime}ms (all LLMs failed)`);
+    console.log(`${'='.repeat(60)}\n`);
     return {
       answer: 'AI service temporarily unavailable due to rate limiting. Please try again in a moment.',
       sources, confidence: 'low', followUps: [], model: null,
@@ -496,7 +547,7 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
   }
 
   const answer = llmResponse.content;
-  console.log(`\n  [ANSWER] ${answer.length} chars`);
+  console.log(`  [ANSWER] ${answer.length} chars`);
 
   // Confidence
   const avgScore = reranked.reduce((s, m) => s + (m.combinedScore ?? 0), 0) / reranked.length;
@@ -512,7 +563,9 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
     model: usedModel, chunkCount: reranked.length, conversationId,
   };
 
+  const totalTime = Date.now() - pipelineStart;
   console.log(`  [RESULT] confidence=${confidence} | sources=${sources.length} | model=${usedModel} | chunks=${reranked.length}`);
+  console.log(`  [TIMING] Pipeline total: ${totalTime}ms (embed: ${embedTime}ms, search: ${searchTime}ms, rerank: ${rerankTime}ms)`);
   console.log(`${'='.repeat(60)}\n`);
 
   return response;

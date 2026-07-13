@@ -14,9 +14,23 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response) {
+      const status = error.response.status;
       const data = error.response.data;
+
       if (typeof data === 'string' && data.includes('<!DOCTYPE')) {
         error.response.data = { message: 'Server error - the request may have timed out. Please try again.' };
+      } else if (status === 504) {
+        error.response.data = {
+          success: false,
+          code: 'GATEWAY_TIMEOUT',
+          message: 'The server took too long to respond. Please try a shorter question or try again later.',
+        };
+      } else if (status === 400 && data?.code === 'DOCUMENT_NOT_PROCESSED') {
+        error.response.data = {
+          success: false,
+          code: 'DOCUMENT_NOT_PROCESSED',
+          message: data.message || 'This document has not been processed successfully. Please upload it again.',
+        };
       }
     } else if (error.code === 'ECONNABORTED') {
       error.message = 'Request timed out. Please try again.';
