@@ -24,6 +24,7 @@ const isVercel = !!process.env.VERCEL;
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'patrashubhamm031@gmail.com';
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is not set.');
@@ -61,18 +62,20 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
         return done(new Error('No email found from Google account'), null);
       }
 
+      const isAdminUser = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
       const result = await pool.query(
-        `INSERT INTO users (google_id, full_name, email, avatar_url, email_verified, last_login_at)
-         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+        `INSERT INTO users (google_id, full_name, email, avatar_url, email_verified, role, last_login_at)
+         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
          ON CONFLICT (google_id) DO UPDATE SET
            full_name = EXCLUDED.full_name,
            email = EXCLUDED.email,
            avatar_url = EXCLUDED.avatar_url,
            email_verified = EXCLUDED.email_verified,
+           role = CASE WHEN ${isAdminUser} THEN 'admin' ELSE users.role END,
            updated_at = CURRENT_TIMESTAMP,
            last_login_at = CURRENT_TIMESTAMP
-         RETURNING id, google_id, full_name, email, avatar_url`,
-        [googleId, fullName, email, avatarUrl, emailVerified]
+         RETURNING id, google_id, full_name, email, avatar_url, role`,
+        [googleId, fullName, email, avatarUrl, emailVerified, isAdminUser ? 'admin' : 'user']
       );
 
       const user = result.rows[0];
@@ -139,6 +142,18 @@ function optionalAuth(req, res, next) {
   next();
 }
 
+async function isAdmin(req, res, next) {
+  try {
+    const result = await pool.query('SELECT role FROM users WHERE id = $1', [req.user.id]);
+    if (result.rows.length === 0 || result.rows[0].role !== 'admin') {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    next();
+  } catch {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+}
+
 // ==================== AUTH ROUTES ====================
 
 app.get('/api/auth/google', (req, res, next) => {
@@ -174,14 +189,20 @@ app.get('/api/auth/google/callback',
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, full_name, email, avatar_url, created_at FROM users WHERE id = $1',
+      'SELECT id, full_name, email, avatar_url, role, created_at FROM users WHERE id = $1',
       [req.user.id]
     );
     if (result.rows.length === 0) {
       clearAuthCookie(res);
       return res.status(401).json({ message: 'User not found' });
     }
-    res.json({ user: result.rows[0] });
+    const user = result.rows[0];
+    const isAdminUser = user.email === ADMIN_EMAIL;
+    if (isAdminUser && user.role !== 'admin') {
+      await pool.query("UPDATE users SET role = 'admin' WHERE id = $1", [user.id]);
+      user.role = 'admin';
+    }
+    res.json({ user });
   } catch (error) {
     console.error('Get user error:', error.message);
     res.status(500).json({ message: 'Failed to get user data' });
@@ -213,11 +234,12 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const isAdminEmail = email.toLowerCase() === ADMIN_EMAIL;
     const result = await pool.query(
-      `INSERT INTO users (full_name, email, password_hash, auth_provider, email_verified, last_login_at)
-       VALUES ($1, $2, $3, 'email', false, CURRENT_TIMESTAMP)
-       RETURNING id, full_name, email, avatar_url, created_at`,
-      [name.trim(), email.toLowerCase(), passwordHash]
+      `INSERT INTO users (full_name, email, password_hash, auth_provider, email_verified, role, last_login_at)
+       VALUES ($1, $2, $3, 'email', false, $4, CURRENT_TIMESTAMP)
+       RETURNING id, full_name, email, avatar_url, role, created_at`,
+      [name.trim(), email.toLowerCase(), passwordHash, isAdminEmail ? 'admin' : 'user']
     );
 
     const user = result.rows[0];
@@ -238,7 +260,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT id, full_name, email, avatar_url, password_hash, created_at FROM users WHERE email = $1',
+      'SELECT id, full_name, email, avatar_url, password_hash, role, created_at FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
     if (result.rows.length === 0) {
@@ -613,6 +635,125 @@ app.post('/api/analyze', authenticateToken, async (req, res) => {
     console.error('Analyze error:', error.message);
     console.error(error.stack);
     res.status(500).json({ message: 'Analysis failed: ' + error.message });
+  }
+});
+
+// ==================== VISIT TRACKING ====================
+
+app.post('/api/track-visit', optionalAuth, async (req, res) => {
+  try {
+    const { page } = req.body;
+    if (!page) return res.json({ ok: true });
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    const ua = req.headers['user-agent'] || '';
+    const referrer = req.headers['referer'] || '';
+    const userId = req.user?.id || null;
+    const email = req.user?.email || null;
+    await pool.query(
+      'INSERT INTO page_visits (user_id, email, page, ip_address, user_agent, referrer) VALUES ($1, $2, $3, $4, $5, $6)',
+      [userId, email, page, ip, ua, referrer]
+    );
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: true });
+  }
+});
+
+// ==================== ADMIN ROUTES ====================
+
+app.get('/api/admin/stats', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const [users, docs, convs, msgs, visits, todayVisits, uniqueVisitors] = await Promise.all([
+      pool.query('SELECT COUNT(*) as count FROM users'),
+      pool.query('SELECT COUNT(*) as count FROM documents'),
+      pool.query('SELECT COUNT(*) as count FROM conversations'),
+      pool.query("SELECT COUNT(*) as count FROM chat_messages WHERE role = 'user'"),
+      pool.query('SELECT COUNT(*) as count FROM page_visits'),
+      pool.query("SELECT COUNT(*) as count FROM page_visits WHERE created_at >= CURRENT_DATE"),
+      pool.query("SELECT COUNT(DISTINCT COALESCE(user_id::text, ip_address)) as count FROM page_visits"),
+    ]);
+    res.json({
+      totalUsers: parseInt(users.rows[0].count),
+      totalDocuments: parseInt(docs.rows[0].count),
+      totalConversations: parseInt(convs.rows[0].count),
+      totalQuestions: parseInt(msgs.rows[0].count),
+      totalVisits: parseInt(visits.rows[0].count),
+      todayVisits: parseInt(todayVisits.rows[0].count),
+      uniqueVisitors: parseInt(uniqueVisitors.rows[0].count),
+    });
+  } catch (error) {
+    console.error('Admin stats error:', error.message);
+    res.status(500).json({ message: 'Failed to fetch stats' });
+  }
+});
+
+app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.full_name, u.email, u.avatar_url, u.role, u.auth_provider,
+              u.email_verified, u.created_at, u.last_login_at,
+              (SELECT COUNT(*) FROM documents WHERE user_id = u.id) as doc_count,
+              (SELECT COUNT(*) FROM conversations WHERE user_id = u.id) as conv_count,
+              (SELECT COUNT(*) FROM chat_messages WHERE user_id = u.id AND role = 'user') as question_count
+       FROM users u ORDER BY u.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Admin users error:', error.message);
+    res.status(500).json({ message: 'Failed to fetch users' });
+  }
+});
+
+app.get('/api/admin/visits', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const result = await pool.query(
+      `SELECT pv.id, pv.email, pv.page, pv.ip_address, pv.user_agent, pv.created_at,
+              u.full_name
+       FROM page_visits pv
+       LEFT JOIN users u ON pv.user_id = u.id
+       ORDER BY pv.created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Admin visits error:', error.message);
+    res.status(500).json({ message: 'Failed to fetch visits' });
+  }
+});
+
+app.get('/api/admin/visits/stats', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT DATE(created_at) as date, COUNT(*) as visits
+       FROM page_visits
+       WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+       GROUP BY DATE(created_at)
+       ORDER BY date ASC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Admin visit stats error:', error.message);
+    res.status(500).json({ message: 'Failed to fetch visit stats' });
+  }
+});
+
+app.put('/api/admin/users/:id/role', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!['user', 'admin'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+    const result = await pool.query(
+      'UPDATE users SET role = $1 WHERE id = $2 RETURNING id, full_name, email, role',
+      [role, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Admin role update error:', error.message);
+    res.status(500).json({ message: 'Failed to update role' });
   }
 });
 

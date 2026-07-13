@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
-import { FileSearch, PanelLeft, FolderOpen } from 'lucide-react';
+import { FileSearch, PanelLeft, FolderOpen, Shield } from 'lucide-react';
 import ThemeToggle from '../ThemeToggle';
+import { useAuth } from '../../context/AuthContext';
 
 function Tip({ children, label }) {
   return (
@@ -12,6 +13,9 @@ function Tip({ children, label }) {
 }
 
 export default function DashboardHeader({ onToggleSidebar = () => {}, onToggleDocs = () => {}, docsPanelOpen = false }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.email === 'patrashubhamm031@gmail.com';
+
   return (
     <header className="shrink-0 flex items-center justify-between px-4 h-14 z-30 glass"
       style={{ borderBottom: '1px solid var(--border-subtle)' }}>
@@ -30,6 +34,16 @@ export default function DashboardHeader({ onToggleSidebar = () => {}, onToggleDo
       </div>
 
       <div className="flex items-center gap-1.5">
+        {isAdmin && (
+          <Tip label="Admin Panel">
+            <Link to="/admin"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all focus-ring"
+              style={{ color: '#F59E0B', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
+              <Shield size={15} />
+              <span className="hidden sm:inline">Admin</span>
+            </Link>
+          </Tip>
+        )}
         <Tip label="Toggle documents panel">
           <button onClick={onToggleDocs}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all focus-ring"

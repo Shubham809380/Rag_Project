@@ -93,6 +93,42 @@ async function migrate() {
     `);
     console.log('Indexes ensured');
 
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'`);
+    console.log('Users table: role column ensured');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS page_visits (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        email VARCHAR(255),
+        page VARCHAR(500) NOT NULL,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        referrer TEXT,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Page visits table ensured');
+
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_page_visits_user_id ON page_visits(user_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_page_visits_created_at ON page_visits(created_at)`);
+    console.log('Page visits indexes ensured');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        login_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        logout_at TIMESTAMPTZ,
+        ip_address VARCHAR(45),
+        user_agent TEXT
+      )
+    `);
+    console.log('User sessions table ensured');
+
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)`);
+    console.log('User sessions indexes ensured');
+
     console.log('Migration completed successfully!');
   } catch (error) {
     console.error('Migration failed:', error.message);

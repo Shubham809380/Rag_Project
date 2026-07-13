@@ -89,4 +89,36 @@ export const deleteAccount = async () => {
   return response.data;
 };
 
+// Admin
+export const getAdminStats = async () => {
+  const response = await api.get('/admin/stats');
+  return response.data;
+};
+
+export const getAdminUsers = async () => {
+  const response = await api.get('/admin/users');
+  return response.data;
+};
+
+export const getAdminVisits = async (limit = 100) => {
+  const response = await api.get(`/admin/visits?limit=${limit}`);
+  return response.data;
+};
+
+export const getAdminVisitStats = async () => {
+  const response = await api.get('/admin/visits/stats');
+  return response.data;
+};
+
+export const updateAdminUserRole = async (userId, role) => {
+  const response = await api.put(`/admin/users/${userId}/role`, { role });
+  return response.data;
+};
+
+export const trackVisit = async (page) => {
+  try {
+    await api.post('/track-visit', { page });
+  } catch {}
+};
+
 export default api;
