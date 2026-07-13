@@ -189,7 +189,13 @@ async function parseDOCX(filePath) {
 }
 
 function parseTXT(filePath) {
-  return [{ pageNumber: 1, text: fs.readFileSync(filePath, 'utf-8') }];
+  let text = fs.readFileSync(filePath, 'utf-8');
+  text = text.replace(/^\uFEFF/, '');
+  if (!text || text.trim().length === 0) {
+    const raw = fs.readFileSync(filePath);
+    text = raw.toString('latin1');
+  }
+  return [{ pageNumber: 1, text }];
 }
 
 function parseCSV(filePath) {

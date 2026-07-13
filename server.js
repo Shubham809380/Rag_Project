@@ -578,7 +578,7 @@ app.post('/api/upload', authenticateToken, (req, res) => {
             fileName: result.fileName,
             pages: result.pages,
             chunks: 0,
-            error: 'No readable text could be extracted from this document.',
+            error: result.error || 'No readable text could be extracted from this document.',
           });
           continue;
         }
