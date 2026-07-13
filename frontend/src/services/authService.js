@@ -1,4 +1,19 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const RAW_API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '/api';
+
+function trimTrailingSlash(value) {
+  return value.replace(/\/+$/, '');
+}
+
+function getApiBaseUrl() {
+  if (RAW_API_URL.startsWith('http://') || RAW_API_URL.startsWith('https://')) {
+    return trimTrailingSlash(RAW_API_URL);
+  }
+
+  const normalizedPath = RAW_API_URL.startsWith('/') ? RAW_API_URL : `/${RAW_API_URL}`;
+  return trimTrailingSlash(`${window.location.origin}${normalizedPath}`);
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 export async function getMe() {
   const response = await fetch(`${API_BASE_URL}/auth/me`, {
@@ -46,9 +61,13 @@ export async function login({ email, password }) {
   return data;
 }
 
-export function getGoogleAuthUrl() {
-  const apiUrl = API_BASE_URL.startsWith('http')
-    ? API_BASE_URL
-    : `${window.location.origin}${API_BASE_URL}`;
-  return `${apiUrl}/auth/google`;
+export function getGoogleAuthUrl(redirectPath = '/dashboard') {
+  const backendUrl = API_BASE_URL;
+  const currentOrigin = window.location.origin;
+  const redirectUrl = new URL(redirectPath, currentOrigin).toString();
+
+  const url = `${backendUrl}/auth/google?redirect=${encodeURIComponent(redirectUrl)}`;
+  return url;
 }
+
+export { API_BASE_URL };

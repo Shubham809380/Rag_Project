@@ -1,17 +1,24 @@
 import express from 'express';
-import cors from 'cors';
 import multer from 'multer';
 import * as dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import passport from 'passport';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
 import bcrypt from 'bcrypt';
 import pool from './backend/db.js';
 import { ingestDocument, getPineconeIndex, queryPipeline } from './backend/rag/pipeline.js';
+import {
+  buildAuthConfig,
+  clearAuthCookie,
+  configurePassport,
+  createAuthenticateToken,
+  createAuthRouter,
+  getRequestToken,
+  setAuthCookie,
+} from './backend/routes/authRoutes.js';
 
 dotenv.config();
 
@@ -21,22 +28,54 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 const isVercel = !!process.env.VERCEL;
+const authConfig = buildAuthConfig(process.env);
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'patrashubhamm031@gmail.com';
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  console.error('FATAL: JWT_SECRET environment variable is not set.');
-  process.exit(1);
+if (!authConfig.jwtSecret) {
+  if (isVercel) {
+    console.error('[FATAL] JWT_SECRET is not set. Auth will be broken. Set JWT_SECRET in Vercel env vars.');
+  } else {
+    console.error('FATAL: JWT_SECRET environment variable is not set.');
+    process.exit(1);
+  }
 }
-const COOKIE_NAME = 'auth_token';
+
+if (!authConfig.googleClientId || !authConfig.googleClientSecret) {
+  console.warn('[WARN] GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is missing. Google OAuth will not work.');
+}
+
+app.set('trust proxy', 1);
 
 app.use(cookieParser());
-app.use(cors({
-  origin: FRONTEND_URL,
-  credentials: true,
-}));
+app.use((req, res, next) => {
+  const requestOrigin = req.headers.origin;
+  const allowedOrigins = [authConfig.frontendUrl];
+
+  if (isVercel && process.env.VERCEL_URL) {
+    const vercelUrl = `https://${process.env.VERCEL_URL}`;
+    if (!allowedOrigins.includes(vercelUrl)) {
+      allowedOrigins.push(vercelUrl);
+    }
+  }
+
+  const origin = requestOrigin || '';
+  const isAllowed = !origin || allowedOrigins.includes(origin);
+
+  if (isAllowed) {
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 app.use(express.json());
 app.use(passport.initialize());
 
@@ -113,122 +152,22 @@ app.get('/api/admin/migrate', async (req, res) => {
   }
 });
 
-// Passport setup
-passport.serializeUser((user, done) => done(null, user));
-passport.deserializeUser((obj, done) => done(null, obj));
-
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-  passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || `${BACKEND_URL}/api/auth/google/callback`,
-    scope: ['profile', 'email'],
-  }, async (accessToken, refreshToken, profile, done) => {
-    try {
-      const googleId = profile.id;
-      const email = profile.emails?.[0]?.value;
-      const fullName = profile.displayName;
-      const avatarUrl = profile.photos?.[0]?.value || null;
-      const emailVerified = profile.emails?.[0]?.verified || false;
-
-      if (!email) {
-        return done(new Error('No email found from Google account'), null);
-      }
-
-      const isAdminUser = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-      let result;
-      try {
-        result = await pool.query(
-          `INSERT INTO users (google_id, full_name, email, avatar_url, email_verified, role, last_login_at)
-           VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-           ON CONFLICT (google_id) DO UPDATE SET
-             full_name = EXCLUDED.full_name,
-             email = EXCLUDED.email,
-             avatar_url = EXCLUDED.avatar_url,
-             email_verified = EXCLUDED.email_verified,
-             role = CASE WHEN ${isAdminUser} THEN 'admin' ELSE users.role END,
-             updated_at = CURRENT_TIMESTAMP,
-             last_login_at = CURRENT_TIMESTAMP
-           RETURNING id, google_id, full_name, email, avatar_url, role`,
-          [googleId, fullName, email, avatarUrl, emailVerified, isAdminUser ? 'admin' : 'user']
-        );
-      } catch (roleErr) {
-        result = await pool.query(
-          `INSERT INTO users (google_id, full_name, email, avatar_url, email_verified, last_login_at)
-           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
-           ON CONFLICT (google_id) DO UPDATE SET
-             full_name = EXCLUDED.full_name,
-             email = EXCLUDED.email,
-             avatar_url = EXCLUDED.avatar_url,
-             email_verified = EXCLUDED.email_verified,
-             updated_at = CURRENT_TIMESTAMP,
-             last_login_at = CURRENT_TIMESTAMP
-           RETURNING id, google_id, full_name, email, avatar_url`,
-          [googleId, fullName, email, avatarUrl, emailVerified]
-        );
-        if (result.rows[0]) {
-          result.rows[0].role = isAdminUser ? 'admin' : 'user';
-        }
-      }
-
-      const user = result.rows[0];
-      return done(null, user);
-    } catch (error) {
-      console.error('Google OAuth error:', error.message);
-      return done(error, null);
-    }
-  }));
-}
-
-// JWT helpers
-function generateToken(user) {
-  return jwt.sign(
-    { id: user.id, email: user.email, name: user.full_name },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-}
-
-function setAuthCookie(res, token) {
-  res.cookie(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: '/',
-  });
-}
-
-function clearAuthCookie(res) {
-  res.cookie(COOKIE_NAME, '', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 0,
-    path: '/',
-  });
+try {
+  configurePassport(passport, pool, authConfig);
+  console.log('[auth] Passport configured successfully');
+} catch (err) {
+  console.error('[auth] Failed to configure Passport:', err.message);
 }
 
 // Auth middleware
-function authenticateToken(req, res, next) {
-  const token = req.cookies[COOKIE_NAME] || req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({ message: 'Authentication required' });
-  }
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: 'Invalid or expired session' });
-  }
-}
+const authenticateToken = createAuthenticateToken(authConfig);
+
 
 function optionalAuth(req, res, next) {
-  const token = req.cookies[COOKIE_NAME] || req.headers.authorization?.replace('Bearer ', '');
+  const token = getRequestToken(req, authConfig);
   if (token) {
     try {
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const decoded = jwt.verify(token, authConfig.jwtSecret);
       req.user = decoded;
     } catch {}
   }
@@ -249,76 +188,9 @@ async function isAdmin(req, res, next) {
 
 // ==================== AUTH ROUTES ====================
 
-app.get('/api/auth/google', (req, res, next) => {
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    return res.status(503).json({ message: 'Google OAuth is not configured' });
-  }
-  const state = req.query.redirect || '';
-  passport.authenticate('google', {
-    scope: ['profile', 'email'],
-    state,
-  })(req, res, next);
-});
-
-app.get('/api/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: `${FRONTEND_URL}/login?error=google_auth_failed`, session: false }),
-  async (req, res) => {
-    try {
-      const user = req.user;
-      if (!user) {
-        return res.redirect(`${FRONTEND_URL}/login?error=google_auth_failed`);
-      }
-      const token = generateToken(user);
-      setAuthCookie(res, token);
-      const redirectUrl = req.query.state || `${FRONTEND_URL}/dashboard`;
-      res.redirect(redirectUrl);
-    } catch (error) {
-      console.error('Auth callback error:', error.message);
-      res.redirect(`${FRONTEND_URL}/login?error=auth_failed`);
-    }
-  }
-);
-
-app.get('/api/auth/me', authenticateToken, async (req, res) => {
-  try {
-    let result;
-    try {
-      result = await pool.query(
-        'SELECT id, full_name, email, avatar_url, role, created_at FROM users WHERE id = $1',
-        [req.user.id]
-      );
-    } catch (roleErr) {
-      result = await pool.query(
-        'SELECT id, full_name, email, avatar_url, created_at FROM users WHERE id = $1',
-        [req.user.id]
-      );
-      if (result.rows.length > 0) {
-        result.rows[0].role = 'user';
-      }
-    }
-    if (result.rows.length === 0) {
-      clearAuthCookie(res);
-      return res.status(401).json({ message: 'User not found' });
-    }
-    const user = result.rows[0];
-    const isAdminUser = user.email === ADMIN_EMAIL;
-    if (isAdminUser && user.role !== 'admin') {
-      try {
-        await pool.query("UPDATE users SET role = 'admin' WHERE id = $1", [user.id]);
-      } catch {}
-      user.role = 'admin';
-    }
-    res.json({ user });
-  } catch (error) {
-    console.error('Get user error:', error.message);
-    res.status(500).json({ message: 'Failed to get user data' });
-  }
-});
-
-app.post('/api/auth/logout', (req, res) => {
-  clearAuthCookie(res);
-  res.json({ message: 'Logged out successfully' });
-});
+const authRoutes = createAuthRouter({ authConfig, authenticateToken, passport, pool });
+app.use('/api/auth', authRoutes);
+console.log('[auth] Auth routes mounted at /api/auth');
 
 app.post('/api/auth/register', async (req, res) => {
   try {
@@ -340,7 +212,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const isAdminEmail = email.toLowerCase() === ADMIN_EMAIL;
+    const isAdminEmail = email.toLowerCase() === authConfig.adminEmail;
     let result;
     try {
       result = await pool.query(
@@ -362,8 +234,12 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const user = result.rows[0];
-    const token = generateToken(user);
-    setAuthCookie(res, token);
+    const token = jwt.sign(
+      { id: user.id, email: user.email, name: user.full_name },
+      authConfig.jwtSecret,
+      { expiresIn: '7d' }
+    );
+    setAuthCookie(res, token, authConfig);
     res.status(201).json({ user });
   } catch (error) {
     console.error('Register error:', error.message);
@@ -409,8 +285,12 @@ app.post('/api/auth/login', async (req, res) => {
 
     await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
 
-    const token = generateToken(user);
-    setAuthCookie(res, token);
+    const token = jwt.sign(
+      { id: user.id, email: user.email, name: user.full_name },
+      authConfig.jwtSecret,
+      { expiresIn: '7d' }
+    );
+    setAuthCookie(res, token, authConfig);
     const { password_hash, ...safeUser } = user;
     res.json({ user: safeUser });
   } catch (error) {
@@ -611,7 +491,7 @@ app.get('/api/user/stats', authenticateToken, async (req, res) => {
 app.delete('/api/user/account', authenticateToken, async (req, res) => {
   try {
     await pool.query('DELETE FROM users WHERE id = $1', [req.user.id]);
-    clearAuthCookie(res);
+    clearAuthCookie(res, authConfig);
     res.json({ message: 'Account deleted' });
   } catch (error) {
     console.error('Delete account error:', error.message);
@@ -913,6 +793,19 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.get('/api/auth/debug', (req, res) => {
+  res.json({
+    googleConfigured: Boolean(authConfig.googleClientId && authConfig.googleClientSecret),
+    frontendUrl: authConfig.frontendUrl,
+    backendUrl: authConfig.backendUrl,
+    callbackUrl: authConfig.callbackUrl,
+    isProduction: authConfig.isProduction,
+    isVercel,
+    vercelUrl: process.env.VERCEL_URL || null,
+    hasJwtSecret: Boolean(authConfig.jwtSecret),
+  });
+});
+
 // Serve frontend build
 const frontendBuild = path.join(__dirname, 'frontend', 'dist');
 if (fs.existsSync(frontendBuild)) {
@@ -967,3 +860,5 @@ if (!isVercel) {
 }
 
 export { app };
+
+
