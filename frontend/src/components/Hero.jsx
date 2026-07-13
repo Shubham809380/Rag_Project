@@ -68,7 +68,7 @@ export default function Hero() {
             { icon: FileText, title: 'Upload Docs', desc: 'Support for PDF, DOCX, and TXT files' },
             { icon: Brain, title: 'AI Analysis', desc: 'Advanced AI understands your content' },
             { icon: Zap, title: 'Instant Results', desc: 'Get accurate answers in seconds' },
-          ].map((item, i) => (
+          ].map((item) => (
             <motion.div
               key={item.title}
               whileHover={{ y: -4, scale: 1.02 }}

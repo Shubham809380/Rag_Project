@@ -4,7 +4,7 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { Upload, FileText, X, CheckCircle, GripVertical, Loader2 } from 'lucide-react';
 import { formatFileSize } from '../utils/helpers';
 
-function FileItem({ file, onRemove, index }) {
+function FileItem({ file, onRemove }) {
   return (
     <Reorder.Item
       value={file}
@@ -121,11 +121,10 @@ export default function FileUploader({ files, onFilesAdd, onFileRemove, onReorde
               onReorder={onReorder}
               className="space-y-2"
             >
-              {files.map((file, index) => (
+              {files.map((file) => (
                 <FileItem
                   key={file.id}
                   file={file}
-                  index={index}
                   onRemove={onFileRemove}
                 />
               ))}

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Copy, Check, FileDown, RefreshCw, Share2, Printer } from 'lucide-react';
+import { Copy, Check, FileDown, RefreshCw, Share2 } from 'lucide-react';
 
 export default function ResultCard({ answer, question, onRegenerate }) {
   const [copied, setCopied] = useState(false);

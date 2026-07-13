@@ -1,14 +1,17 @@
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
-import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
-import { GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { Pinecone } from '@pinecone-database/pinecone';
 import * as dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import jwt from 'jsonwebtoken';
+import cookieParser from 'cookie-parser';
+import bcrypt from 'bcrypt';
+import pool from './backend/db.js';
+import { ingestDocument, getPineconeIndex, queryPipeline } from './backend/rag/pipeline.js';
 
 dotenv.config();
 
@@ -19,20 +22,464 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const isVercel = !!process.env.VERCEL;
 
-app.use(cors());
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set.');
+  process.exit(1);
+}
+const COOKIE_NAME = 'auth_token';
+
+app.use(cookieParser());
+app.use(cors({
+  origin: FRONTEND_URL,
+  credentials: true,
+}));
 app.use(express.json());
+app.use(passport.initialize());
+
+// Passport setup
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((obj, done) => done(null, obj));
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || `${BACKEND_URL}/api/auth/google/callback`,
+    scope: ['profile', 'email'],
+  }, async (accessToken, refreshToken, profile, done) => {
+    try {
+      const googleId = profile.id;
+      const email = profile.emails?.[0]?.value;
+      const fullName = profile.displayName;
+      const avatarUrl = profile.photos?.[0]?.value || null;
+      const emailVerified = profile.emails?.[0]?.verified || false;
+
+      if (!email) {
+        return done(new Error('No email found from Google account'), null);
+      }
+
+      const result = await pool.query(
+        `INSERT INTO users (google_id, full_name, email, avatar_url, email_verified, last_login_at)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+         ON CONFLICT (google_id) DO UPDATE SET
+           full_name = EXCLUDED.full_name,
+           email = EXCLUDED.email,
+           avatar_url = EXCLUDED.avatar_url,
+           email_verified = EXCLUDED.email_verified,
+           updated_at = CURRENT_TIMESTAMP,
+           last_login_at = CURRENT_TIMESTAMP
+         RETURNING id, google_id, full_name, email, avatar_url`,
+        [googleId, fullName, email, avatarUrl, emailVerified]
+      );
+
+      const user = result.rows[0];
+      return done(null, user);
+    } catch (error) {
+      console.error('Google OAuth error:', error.message);
+      return done(error, null);
+    }
+  }));
+}
+
+// JWT helpers
+function generateToken(user) {
+  return jwt.sign(
+    { id: user.id, email: user.email, name: user.full_name },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+
+function setAuthCookie(res, token) {
+  res.cookie(COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+}
+
+function clearAuthCookie(res) {
+  res.cookie(COOKIE_NAME, '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 0,
+    path: '/',
+  });
+}
+
+// Auth middleware
+function authenticateToken(req, res, next) {
+  const token = req.cookies[COOKIE_NAME] || req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: 'Invalid or expired session' });
+  }
+}
+
+function optionalAuth(req, res, next) {
+  const token = req.cookies[COOKIE_NAME] || req.headers.authorization?.replace('Bearer ', '');
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.user = decoded;
+    } catch {}
+  }
+  next();
+}
+
+// ==================== AUTH ROUTES ====================
+
+app.get('/api/auth/google', (req, res, next) => {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return res.status(503).json({ message: 'Google OAuth is not configured' });
+  }
+  const state = req.query.redirect || '';
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    state,
+  })(req, res, next);
+});
+
+app.get('/api/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: `${FRONTEND_URL}/login?error=google_auth_failed`, session: false }),
+  async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.redirect(`${FRONTEND_URL}/login?error=google_auth_failed`);
+      }
+      const token = generateToken(user);
+      setAuthCookie(res, token);
+      const redirectUrl = req.query.state || `${FRONTEND_URL}/dashboard`;
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error('Auth callback error:', error.message);
+      res.redirect(`${FRONTEND_URL}/login?error=auth_failed`);
+    }
+  }
+);
+
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, full_name, email, avatar_url, created_at FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    if (result.rows.length === 0) {
+      clearAuthCookie(res);
+      return res.status(401).json({ message: 'User not found' });
+    }
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Get user error:', error.message);
+    res.status(500).json({ message: 'Failed to get user data' });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearAuthCookie(res);
+  res.json({ message: 'Logged out successfully' });
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email and password are required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ message: 'An account with this email already exists' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const result = await pool.query(
+      `INSERT INTO users (full_name, email, password_hash, auth_provider, email_verified, last_login_at)
+       VALUES ($1, $2, $3, 'email', false, CURRENT_TIMESTAMP)
+       RETURNING id, full_name, email, avatar_url, created_at`,
+      [name.trim(), email.toLowerCase(), passwordHash]
+    );
+
+    const user = result.rows[0];
+    const token = generateToken(user);
+    setAuthCookie(res, token);
+    res.status(201).json({ user });
+  } catch (error) {
+    console.error('Register error:', error.message);
+    res.status(500).json({ message: 'Registration failed' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    const result = await pool.query(
+      'SELECT id, full_name, email, avatar_url, password_hash, created_at FROM users WHERE email = $1',
+      [email.toLowerCase()]
+    );
+    if (result.rows.length === 0) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    const user = result.rows[0];
+    if (!user.password_hash) {
+      return res.status(401).json({ message: 'This account uses Google sign-in. Please use "Continue with Google".' });
+    }
+
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
+
+    const token = generateToken(user);
+    setAuthCookie(res, token);
+    const { password_hash, ...safeUser } = user;
+    res.json({ user: safeUser });
+  } catch (error) {
+    console.error('Login error:', error.message);
+    res.status(500).json({ message: 'Login failed' });
+  }
+});
+
+// ==================== CONVERSATIONS ====================
+
+app.get('/api/conversations', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT c.id, c.title, c.created_at, c.updated_at,
+              (SELECT COUNT(*) FROM chat_messages WHERE conversation_id = c.id) as message_count
+       FROM conversations c
+       WHERE c.user_id = $1
+       ORDER BY c.updated_at DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get conversations error:', error.message);
+    res.status(500).json({ message: 'Failed to fetch conversations' });
+  }
+});
+
+app.post('/api/conversations', authenticateToken, async (req, res) => {
+  try {
+    const { title } = req.body;
+    const result = await pool.query(
+      `INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING id, title, created_at, updated_at`,
+      [req.user.id, title || 'New Chat']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create conversation error:', error.message);
+    res.status(500).json({ message: 'Failed to create conversation' });
+  }
+});
+
+app.put('/api/conversations/:id', authenticateToken, async (req, res) => {
+  try {
+    const { title } = req.body;
+    const result = await pool.query(
+      `UPDATE conversations SET title = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND user_id = $3 RETURNING id, title, updated_at`,
+      [title, req.params.id, req.user.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ message: 'Conversation not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update conversation error:', error.message);
+    res.status(500).json({ message: 'Failed to update conversation' });
+  }
+});
+
+app.delete('/api/conversations/:id', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM conversations WHERE id = $1 AND user_id = $2 RETURNING id',
+      [req.params.id, req.user.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ message: 'Conversation not found' });
+    res.json({ message: 'Conversation deleted' });
+  } catch (error) {
+    console.error('Delete conversation error:', error.message);
+    res.status(500).json({ message: 'Failed to delete conversation' });
+  }
+});
+
+app.get('/api/conversations/:id/messages', authenticateToken, async (req, res) => {
+  try {
+    const conv = await pool.query(
+      'SELECT id FROM conversations WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (conv.rows.length === 0) return res.status(404).json({ message: 'Conversation not found' });
+
+    const result = await pool.query(
+      `SELECT id, role, message, metadata, created_at FROM chat_messages
+       WHERE conversation_id = $1 AND user_id = $2
+       ORDER BY created_at ASC`,
+      [req.params.id, req.user.id]
+    );
+
+    const messages = result.rows.map(m => {
+      const meta = m.metadata || {};
+      return {
+        id: m.id,
+        role: m.role,
+        content: m.message,
+        created_at: m.created_at,
+        sources: meta.sources || [],
+        confidence: meta.confidence || null,
+        followUps: meta.followUps || [],
+        model: meta.model || null,
+      };
+    });
+    res.json(messages);
+  } catch (error) {
+    console.error('Get messages error:', error.message);
+    res.status(500).json({ message: 'Failed to fetch messages' });
+  }
+});
+
+// ==================== DOCUMENTS ====================
+
+app.get('/api/documents', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, pinecone_file_id, file_name, chunk_count, created_at
+       FROM documents WHERE user_id = $1 ORDER BY created_at DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get documents error:', error.message);
+    res.status(500).json({ message: 'Failed to fetch documents' });
+  }
+});
+
+app.delete('/api/documents/:id', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, pinecone_file_id FROM documents WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ message: 'Document not found' });
+
+    const doc = result.rows[0];
+
+    try {
+      const pineconeIndex = getPineconeIndex();
+      await pineconeIndex.deleteMany({ filter: { fileId: doc.pinecone_file_id } });
+    } catch (pineErr) {
+      console.error('Pinecone delete error:', pineErr.message);
+    }
+
+    await pool.query('DELETE FROM documents WHERE id = $1', [doc.id]);
+    res.json({ message: 'Document deleted' });
+  } catch (error) {
+    console.error('Delete document error:', error.message);
+    res.status(500).json({ message: 'Failed to delete document' });
+  }
+});
+
+// ==================== USER PROFILE ====================
+
+app.get('/api/user/profile', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, full_name, email, avatar_url, auth_provider, created_at, last_login_at FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get profile error:', error.message);
+    res.status(500).json({ message: 'Failed to fetch profile' });
+  }
+});
+
+app.put('/api/user/profile', authenticateToken, async (req, res) => {
+  try {
+    const { full_name } = req.body;
+    if (!full_name || !full_name.trim()) return res.status(400).json({ message: 'Name is required' });
+    const result = await pool.query(
+      `UPDATE users SET full_name = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 RETURNING id, full_name, email, avatar_url`,
+      [full_name.trim(), req.user.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update profile error:', error.message);
+    res.status(500).json({ message: 'Failed to update profile' });
+  }
+});
+
+app.get('/api/user/stats', authenticateToken, async (req, res) => {
+  try {
+    const [docs, conversations, messages] = await Promise.all([
+      pool.query('SELECT COUNT(*) as count FROM documents WHERE user_id = $1', [req.user.id]),
+      pool.query('SELECT COUNT(*) as count FROM conversations WHERE user_id = $1', [req.user.id]),
+      pool.query("SELECT COUNT(*) as count FROM chat_messages WHERE user_id = $1 AND role = 'user'", [req.user.id]),
+    ]);
+    res.json({
+      documents: parseInt(docs.rows[0].count),
+      conversations: parseInt(conversations.rows[0].count),
+      questionsAsked: parseInt(messages.rows[0].count),
+    });
+  } catch (error) {
+    console.error('Get stats error:', error.message);
+    res.status(500).json({ message: 'Failed to fetch stats' });
+  }
+});
+
+app.delete('/api/user/account', authenticateToken, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM users WHERE id = $1', [req.user.id]);
+    clearAuthCookie(res);
+    res.json({ message: 'Account deleted' });
+  } catch (error) {
+    console.error('Delete account error:', error.message);
+    res.status(500).json({ message: 'Failed to delete account' });
+  }
+});
+
+// ==================== FILE UPLOAD & ANALYSIS ====================
 
 const uploadsDir = isVercel ? '/tmp' : path.join(__dirname, 'uploads');
 const upload = multer({
   dest: uploadsDir,
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = ['.pdf', '.docx', '.txt'];
+    const allowed = ['.pdf', '.docx', '.txt', '.csv'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowed.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF, DOCX, TXT files are allowed'));
+      cb(new Error('Only PDF, DOCX, TXT, CSV files are allowed'));
     }
   },
 });
@@ -43,95 +490,11 @@ if (!isVercel && !fs.existsSync(path.join(__dirname, 'uploads'))) {
   fs.mkdirSync(path.join(__dirname, 'uploads'));
 }
 
-const history = [];
-const fileStore = {};
-
-function getEmbeddings() {
-  return new GoogleGenerativeAIEmbeddings({
-    apiKey: process.env.GEMINI_API_KEY,
-    model: 'gemini-embedding-001',
-  });
+async function processFile(file, user) {
+  return ingestDocument(file, user);
 }
 
-function getPineconeIndex() {
-  const pc = new Pinecone();
-  return pc.Index(process.env.PINECONE_INDEX_NAME);
-}
-
-// Helper: process a single file and index into Pinecone
-async function processFile(file) {
-  const filePath = file.path;
-  const fileName = file.originalname;
-  const fileExt = path.extname(fileName).toLowerCase();
-
-  console.log(`\n=== UPLOAD: ${fileName} ===`);
-
-  let rawDocs = [];
-  if (fileExt === '.pdf') {
-    const loader = new PDFLoader(filePath);
-    rawDocs = await loader.load();
-  } else {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    rawDocs = [{ pageContent: content, metadata: { source: fileName } }];
-  }
-
-  console.log(`Loaded ${rawDocs.length} pages`);
-
-  const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 1000, chunkOverlap: 200 });
-  const chunks = await splitter.splitDocuments(rawDocs);
-  console.log(`Split into ${chunks.length} chunks`);
-
-  const embeddings = getEmbeddings();
-  const pineconeIndex = getPineconeIndex();
-  const fileId = `file-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-
-  let totalUpserted = 0;
-  const BATCH_SIZE = 20;
-  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-    const batch = chunks.slice(i, i + BATCH_SIZE).filter((doc) => doc.pageContent.trim().length > 10);
-    if (batch.length === 0) continue;
-
-    const texts = batch.map((doc) => doc.pageContent);
-    const vectors = await embeddings.embedDocuments(texts);
-
-    const records = [];
-    for (let idx = 0; idx < batch.length; idx++) {
-      if (vectors[idx] && vectors[idx].length > 0) {
-        records.push({
-          id: `${fileId}-chunk-${i + idx}`,
-          values: vectors[idx],
-          metadata: {
-            pageContent: batch[idx].pageContent.substring(0, 1000),
-            source: fileName,
-            fileId: fileId,
-            page: batch[idx].metadata?.loc?.pageNumber || 0,
-          },
-        });
-      }
-    }
-
-    if (records.length > 0) {
-      await pineconeIndex.upsert({ records });
-      totalUpserted += records.length;
-    }
-  }
-
-  fileStore[fileId] = { fileName, chunks: totalUpserted, date: new Date().toISOString() };
-
-  try { fs.unlinkSync(filePath); } catch {}
-
-  console.log(`=== INDEXED: ${fileName} → ${totalUpserted} chunks ===`);
-
-  return {
-    fileId,
-    fileName,
-    pages: rawDocs.length,
-    chunks: totalUpserted,
-  };
-}
-
-// Upload single or multiple files
-app.post('/api/upload', (req, res) => {
+app.post('/api/upload', authenticateToken, (req, res) => {
   uploadMultiple(req, res, async (err) => {
     try {
       if (err) {
@@ -145,8 +508,18 @@ app.post('/api/upload', (req, res) => {
 
       const results = [];
       for (const file of files) {
-        const result = await processFile(file);
+        const result = await processFile(file, req.user);
         results.push(result);
+
+        try {
+          await pool.query(
+            `INSERT INTO documents (user_id, pinecone_file_id, file_name, chunk_count)
+             VALUES ($1, $2, $3, $4)`,
+            [req.user.id, result.fileId, result.fileName, result.chunks]
+          );
+        } catch (dbErr) {
+          console.error('Failed to save document to DB:', dbErr.message);
+        }
       }
 
       console.log(`\n=== ALL DONE: ${results.length} files indexed ===\n`);
@@ -157,16 +530,16 @@ app.post('/api/upload', (req, res) => {
       });
     } catch (error) {
       console.error('Upload error:', error.message);
-      console.error(error.stack);
       res.status(500).json({ message: 'Failed to process document: ' + error.message });
     }
   });
 });
 
-// Analyze document
-app.post('/api/analyze', async (req, res) => {
+// ==================== ANALYZE (MULTI-TURN) ====================
+
+app.post('/api/analyze', authenticateToken, async (req, res) => {
   try {
-    const { question, fileId } = req.body;
+    const { question, fileId, conversationId } = req.body;
 
     if (!question || !question.trim()) {
       return res.status(400).json({ message: 'Question is required' });
@@ -174,142 +547,68 @@ app.post('/api/analyze', async (req, res) => {
 
     console.log(`\n=== ANALYZE: "${question}" ===`);
 
-    const embeddings = getEmbeddings();
-    const pineconeIndex = getPineconeIndex();
+    let convId = conversationId;
 
-    // Embed the question
-    const queryVector = await embeddings.embedQuery(question);
-    console.log(`Query embedded (${queryVector.length} dimensions)`);
-
-    // Direct Pinecone query - bypass LangChain PineconeStore
-    const queryResponse = await pineconeIndex.query({
-      vector: queryVector,
-      topK: 10,
-      includeMetadata: true,
-    });
-
-    const matches = queryResponse.matches || [];
-    console.log(`Pinecone returned ${matches.length} matches`);
-
-    // Filter by score and deduplicate
-    const MIN_SCORE = 0.5;
-    const seen = new Set();
-    const contextParts = [];
-    
-    matches.forEach((match, i) => {
-      const content = match.metadata?.pageContent || '';
-      const score = match.score;
-      
-      // Skip low score matches
-      if (score < MIN_SCORE) {
-        console.log(`  Match ${i + 1}: SKIPPED (score=${score.toFixed(4)} < ${MIN_SCORE})`);
-        return;
-      }
-      
-      // Skip duplicate content
-      const fingerprint = content.substring(0, 100).trim().toLowerCase();
-      if (seen.has(fingerprint)) {
-        console.log(`  Match ${i + 1}: SKIPPED (duplicate)`);
-        return;
-      }
-      seen.add(fingerprint);
-      
-      console.log(`  Match ${i + 1}: score=${score.toFixed(4)}, ${content.length} chars`);
-      if (content && content.trim().length > 0) {
-        contextParts.push(content);
-      }
-    });
-
-    const context = contextParts.join('\n\n---\n\n');
-
-    if (!context) {
-      console.log('No context found!');
-      res.json({ answer: "I don't have enough information to answer this. No relevant content was found in the indexed documents." });
-      return;
+    if (!convId) {
+      const title = question.length > 60 ? question.substring(0, 60) + '...' : question;
+      const convResult = await pool.query(
+        'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING id',
+        [req.user.id, title]
+      );
+      convId = convResult.rows[0].id;
     }
 
-    console.log(`Context length: ${context.length} chars`);
+    await pool.query(
+      `INSERT INTO chat_messages (user_id, conversation_id, role, message) VALUES ($1, $2, 'user', $3)`,
+      [req.user.id, convId, question]
+    );
+    await pool.query(
+      'UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [convId]
+    );
 
-    // Generate answer with Gemini
-    const llm = new ChatGoogleGenerativeAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      model: 'gemini-2.5-flash',
-      temperature: 0.3,
-      maxRetries: 2,
-      timeout: 60000,
-    });
+    // Get conversation history for multi-turn context
+    const historyResult = await pool.query(
+      `SELECT role, message FROM chat_messages
+       WHERE conversation_id = $1 AND user_id = $2
+       ORDER BY created_at ASC`,
+      [convId, req.user.id]
+    );
+    const previousMessages = historyResult.rows.slice(0, -1);
 
-    const systemMessage = `You are a helpful document assistant. Your job is to answer questions based ONLY on the provided document context.
-
-CRITICAL RULES:
-1. LANGUAGE: You MUST reply in the SAME language as the user's question. If the user asks in Hindi, reply entirely in Hindi. If in English, reply in English. If in Spanish, reply in Spanish. Always match the question's language.
-2. NATURAL ANSWERING: Write complete, natural, conversational sentences. Do NOT just copy-paste raw lines, labels, or bullet points from the document. Explain the answer like you are talking to a person.
-3. NO RAW LABELS: Never output things like "Company Name: XYZ" or "Working Hours: 9-5". Instead write "The company's name is XYZ" or "Working hours are from 9 to 5."
-4. CONTEXT ONLY: Use ONLY the information from the provided document context. Do NOT add any outside knowledge or make assumptions.
-5. INSUFFICIENT INFO: If the document context does not contain enough information to answer the question, say so politely in the user's language.`;
-
-    const messages = [
-      { role: 'system', content: systemMessage },
-      {
-        role: 'user',
-        content: `Document context:\n<context>\n${context}\n</context>\n\nQuestion: ${question}\n\nAnswer naturally in the same language as the question, using complete sentences:`,
-      },
-    ];
-
-    // Generate answer with Gemini - try multiple models as fallback
-    const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-flash-latest'];
-    let llmResponse = null;
-    let lastError = null;
-
-    for (const modelName of models) {
-      try {
-        const llm = new ChatGoogleGenerativeAI({
-          apiKey: process.env.GEMINI_API_KEY,
-          model: modelName,
-          temperature: 0.3,
-          maxRetries: 1,
-          timeout: 30000,
-        });
-        console.log(`Trying model: ${modelName}...`);
-        llmResponse = await llm.invoke(messages);
-        console.log(`Success with ${modelName}`);
-        break;
-      } catch (err) {
-        lastError = err;
-        console.log(`  ${modelName} failed: ${err.message?.substring(0, 80)}`);
-        continue;
-      }
-    }
-
-    if (!llmResponse) {
-      console.error('All models failed:', lastError?.message);
-      res.status(503).json({ 
-        message: 'AI service quota exceeded. Please try again after some time.' 
-      });
-      return;
-    }
-
-    const answer = llmResponse.content;
-    console.log(`Answer length: ${answer.length} chars`);
-    console.log(`Answer preview: ${answer.substring(0, 150)}...`);
-
-    const historyItem = {
-      id: `analysis-${Date.now()}`,
-      question: question,
-      answer: answer,
+    // Run the RAG pipeline
+    const result = await queryPipeline({
+      question: question.trim(),
       fileId: fileId || null,
-      fileName: fileStore[fileId]?.fileName || req.body.fileName || 'Document',
-      date: new Date().toISOString(),
-    };
-    history.unshift(historyItem);
-    if (history.length > 50) history.pop();
+      userId: req.user.id,
+      conversationId: convId,
+      previousMessages,
+    });
+
+    // Save assistant response with metadata (sources, confidence, followUps, model)
+    const assistantMetadata = JSON.stringify({
+      sources: result.sources || [],
+      confidence: result.confidence || null,
+      followUps: result.followUps || [],
+      model: result.model || null,
+    });
+    await pool.query(
+      `INSERT INTO chat_messages (user_id, conversation_id, role, message, metadata) VALUES ($1, $2, 'assistant', $3, $4)`,
+      [req.user.id, convId, result.answer, assistantMetadata]
+    );
+
+    // Update conversation title if first message
+    if (previousMessages.length === 0) {
+      const shortTitle = question.length > 60 ? question.substring(0, 60) + '...' : question;
+      await pool.query(
+        'UPDATE conversations SET title = $1 WHERE id = $2',
+        [shortTitle, convId]
+      );
+    }
 
     console.log(`=== ANSWER READY ===\n`);
 
-    res.json({
-      answer: answer,
-      id: historyItem.id,
-    });
+    res.json(result);
   } catch (error) {
     console.error('Analyze error:', error.message);
     console.error(error.stack);
@@ -317,7 +616,6 @@ CRITICAL RULES:
   }
 });
 
-// Debug: check what's in Pinecone
 app.get('/api/debug', async (req, res) => {
   try {
     const pineconeIndex = getPineconeIndex();
@@ -328,43 +626,60 @@ app.get('/api/debug', async (req, res) => {
   }
 });
 
-// History
-app.get('/api/history', (req, res) => {
-  res.json(history);
-});
-
-// Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Serve frontend build (for production deploy)
+// Serve frontend build
 const frontendBuild = path.join(__dirname, 'frontend', 'dist');
 if (fs.existsSync(frontendBuild)) {
   app.use(express.static(frontendBuild));
-  app.use((req, res) => {
-    res.sendFile(path.join(frontendBuild, 'index.html'));
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api')) {
+      return res.sendFile(path.join(frontendBuild, 'index.html'));
+    }
+    next();
   });
 }
 
-// Error handler (must be last)
+// Error handler
 app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
   if (err instanceof multer.MulterError) {
     return res.status(400).json({ message: 'File upload error: ' + err.message });
   }
   res.status(500).json({ message: err.message || 'Internal server error' });
 });
 
-// Listen only when running directly (not on Vercel)
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err.message);
+});
+
 if (!isVercel) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`Endpoints:`);
-    console.log(`  POST /api/upload    - Upload & index document`);
-    console.log(`  POST /api/analyze   - Ask question about document`);
-    console.log(`  GET  /api/history   - Get analysis history`);
-    console.log(`  GET  /api/debug     - Check Pinecone data`);
-    console.log(`  GET  /api/health    - Health check`);
+    console.log(`  GET  /api/auth/google         - Google OAuth login`);
+    console.log(`  GET  /api/auth/google/callback - Google OAuth callback`);
+    console.log(`  GET  /api/auth/me             - Get current user`);
+    console.log(`  POST /api/auth/logout          - Logout`);
+    console.log(`  POST /api/upload               - Upload & index document`);
+    console.log(`  POST /api/analyze              - Ask question about document`);
+    console.log(`  GET  /api/history              - Get analysis history`);
+    console.log(`  GET  /api/debug                - Check Pinecone data`);
+    console.log(`  GET  /api/health               - Health check`);
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} is already in use. Kill the other process or use a different port.`);
+    } else {
+      console.error('Server error:', err.message);
+    }
   });
 }
 

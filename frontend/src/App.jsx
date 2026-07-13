@@ -1,29 +1,50 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
-import Navbar from './components/Navbar';
-import Footer from './components/Footer';
-import Home from './pages/Home';
-import HistoryPage from './pages/History';
-import About from './pages/About';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+
+import LandingPage from './pages/LandingPage';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import DashboardPage from './pages/DashboardPage';
+import ProfilePage from './pages/ProfilePage';
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
 import NotFound from './pages/NotFound';
 
 export default function App() {
   return (
     <ThemeProvider>
-      <BrowserRouter>
-        <div className="min-h-screen flex flex-col bg-bg dark:bg-slate-950 transition-colors duration-300">
-          <Navbar />
-          <main className="flex-1">
+      <AuthProvider>
+        <BrowserRouter>
+          <div className="min-h-screen flex flex-col transition-colors duration-300">
             <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/history" element={<HistoryPage />} />
-              <Route path="/about" element={<About />} />
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <ProfilePage />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </main>
-          <Footer />
-        </div>
-      </BrowserRouter>
+          </div>
+        </BrowserRouter>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

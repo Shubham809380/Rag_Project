@@ -54,7 +54,7 @@ export default function Home() {
           )
         );
         toast.success(`${f.name} uploaded!`);
-      } catch (err) {
+      } catch {
         setFiles((prev) =>
           prev.map((item) => (item.id === f.id ? { ...item, status: 'error' } : item))
         );

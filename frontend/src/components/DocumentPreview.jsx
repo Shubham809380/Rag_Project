@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function DocumentPreview({ fileName, fileId }) {
   const [expanded, setExpanded] = useState(false);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, FileText, Search, Trash2 } from 'lucide-react';
+import { Clock, FileText, Search } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { getHistory } from '../services/api';
 import { formatDate, truncate } from '../utils/helpers';
