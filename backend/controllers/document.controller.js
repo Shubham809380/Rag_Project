@@ -11,7 +11,7 @@ export async function uploadDocuments(req, res) {
   try {
     const files = req.files;
     if (!files || files.length === 0) {
-      return res.status(400).json({ success: false, message: 'No files uploaded' });
+      return res.status(400).json({ success: false, code: 'NO_FILES', message: 'No files uploaded', stage: 'upload', retryable: false });
     }
 
     logger.info(LOG, `Processing ${files.length} files`, { userId: req.user.id });
@@ -25,20 +25,30 @@ export async function uploadDocuments(req, res) {
       try {
         result = await pipelineService.ingestDocument(file, req.user);
       } catch (ingestErr) {
-        logger.error(LOG, `Ingest failed: ${file.originalname}`, { error: ingestErr.message });
+        logger.error(LOG, `Ingest crashed: ${file.originalname}`, { error: ingestErr.message, stack: ingestErr.stack?.substring(0, 300) });
         documentService.cleanupFile(file.path);
         results.push({
           fileId: null, fileName: file.originalname, pages: 0, chunks: 0,
-          error: ingestErr.message, code: 'INGEST_FAILED',
+          success: false,
+          code: 'INGEST_CRASH',
+          stage: 'pipeline',
+          message: `Unexpected error processing ${file.originalname}: ${ingestErr.message}`,
+          details: ingestErr.stack?.substring(0, 300) || ingestErr.message,
+          retryable: true,
         });
         continue;
       }
 
       const fileElapsed = Date.now() - fileStart;
-      logger.info(LOG, `Done: ${file.originalname}`, { chunks: result.chunks, ms: fileElapsed });
+      logger.info(LOG, `Done: ${file.originalname}`, { chunks: result.chunks, ms: fileElapsed, code: result.code });
+
+      if (!result.success && result.code) {
+        results.push({ ...result, fileName: file.originalname });
+        continue;
+      }
 
       if (!result.chunks || result.chunks === 0) {
-        results.push(result);
+        results.push({ ...result, fileName: file.originalname });
         continue;
       }
 
@@ -58,7 +68,7 @@ export async function uploadDocuments(req, res) {
 
     const totalElapsed = Date.now() - uploadStart;
     const successCount = results.filter(r => r.chunks > 0).length;
-    const failCount = results.filter(r => r.chunks === 0).length;
+    const failCount = results.filter(r => !r.chunks || r.chunks === 0).length;
 
     logger.info(LOG, `COMPLETE: ${successCount} ok, ${failCount} fail (${totalElapsed}ms)`);
 
@@ -69,8 +79,15 @@ export async function uploadDocuments(req, res) {
         : `${results.length} document(s) uploaded and indexed successfully`,
     });
   } catch (error) {
-    logger.error(LOG, 'Upload error', { error: error.message });
-    res.status(500).json({ success: false, stage: 'upload', message: 'Failed to process document: ' + error.message, retryable: true });
+    logger.error(LOG, 'Upload error', { error: error.message, stack: error.stack?.substring(0, 300) });
+    res.status(500).json({
+      success: false,
+      code: 'UPLOAD_FAILED',
+      stage: 'server',
+      message: 'Failed to process document: ' + error.message,
+      details: error.stack?.substring(0, 300) || error.message,
+      retryable: true,
+    });
   }
 }
 

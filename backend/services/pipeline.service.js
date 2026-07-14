@@ -1,3 +1,4 @@
+import { TaskType } from '@google/generative-ai';
 import config from '../config/index.js';
 import logger from '../utils/logger.js';
 import { chunkByPages } from '../rag/chunker.js';
@@ -20,7 +21,7 @@ export async function ingestDocument(file, user) {
   const validation = documentService.validateFile(file);
   if (!validation.valid) {
     documentService.cleanupFile(filePath);
-    return { fileId, fileName, pages: 0, chunks: 0, error: validation.error, code: 'VALIDATION_FAILED' };
+    return { fileId, fileName, pages: 0, chunks: 0, error: validation.error, code: 'VALIDATION_FAILED', success: false, stage: 'validation', retryable: false };
   }
 
   const parseStart = Date.now();
@@ -33,13 +34,13 @@ export async function ingestDocument(file, user) {
   } catch (parseErr) {
     documentService.cleanupFile(filePath);
     logger.error(LOG, `Parse failed: ${fileName}`, { error: parseErr.message });
-    return { fileId, fileName, pages: 0, chunks: 0, error: `Failed to parse document: ${parseErr.message}`, code: 'PARSE_FAILED' };
+    return { fileId, fileName, pages: 0, chunks: 0, error: `Failed to parse document: ${parseErr.message}`, code: 'PARSE_FAILED', success: false, stage: 'parsing', retryable: false };
   }
   logger.timing(LOG, 'Parse', parseStart);
 
   if (totalChars === 0) {
     documentService.cleanupFile(filePath);
-    return { fileId, fileName, pages: totalPages, chunks: 0, totalChars: 0, error: 'No readable text extracted from document.', code: 'EMPTY_DOCUMENT' };
+    return { fileId, fileName, pages: totalPages, chunks: 0, totalChars: 0, error: 'No readable text extracted from document.', code: 'EMPTY_DOCUMENT', success: false, stage: 'parsing', retryable: false };
   }
 
   const chunkStart = Date.now();
@@ -49,26 +50,37 @@ export async function ingestDocument(file, user) {
 
   if (chunks.length === 0) {
     documentService.cleanupFile(filePath);
-    return { fileId, fileName, pages: totalPages, chunks: 0, totalChars, error: 'Text extracted but too short to create chunks.', code: 'NO_CHUNKS' };
+    return { fileId, fileName, pages: totalPages, chunks: 0, totalChars, error: 'Text extracted but too short to create chunks.', code: 'NO_CHUNKS', success: false, stage: 'chunking', retryable: false };
   }
 
   const embedStart = Date.now();
   const allTexts = chunks.map(c => c.pageContent);
-  const { results: allVectors, totalSuccess, totalFailed, dimension, duration: embedDuration } = await embeddingService.embedTexts(allTexts, { label: `ingest-${fileId}` });
+  const { results: allVectors, totalSuccess, totalFailed, dimension, duration: embedDuration } = await embeddingService.embedTexts(allTexts, {
+    label: `ingest-${fileId}`,
+    taskType: TaskType.RETRIEVAL_DOCUMENT,
+  });
   logger.timing(LOG, 'Embed', embedStart);
 
   const expectedDim = embeddingService.getExpectedDimension();
-  if (dimension !== expectedDim) {
-    logger.warn(LOG, `Dimension mismatch: got ${dimension}, expected ${expectedDim}`);
+  if (dimension > 0 && dimension !== expectedDim) {
+    logger.error(LOG, `DIMENSION MISMATCH: embedding produced ${dimension}d vectors, Pinecone index expects ${expectedDim}d`, {
+      embeddingDimension: dimension,
+      expectedDimension: expectedDim,
+      action: 'Recreate Pinecone index with dimension ' + dimension,
+    });
   }
 
   if (totalSuccess === 0) {
     documentService.cleanupFile(filePath);
-    logger.error(LOG, `All embeddings failed for ${fileName}`);
+    logger.error(LOG, `All ${chunks.length} embeddings failed for ${fileName}`);
     return {
+      success: false,
       fileId, fileName, pages: totalPages, chunks: 0, totalChars, chunkCount: chunks.length,
       code: 'EMBEDDING_GENERATION_FAILED',
-      error: `Embedding generation failed for all ${chunks.length} chunks. Check GEMINI_API_KEY and model availability.`,
+      stage: 'embedding',
+      message: `Embedding generation failed for all ${chunks.length} chunks. Check GEMINI_API_KEY and model availability.`,
+      details: `Model: gemini-embedding-001, Chunks: ${chunks.length}, All ${totalFailed} failed`,
+      retryable: true,
     };
   }
 
@@ -102,18 +114,23 @@ export async function ingestDocument(file, user) {
 
   const totalTime = Date.now() - ingestStart;
   logger.stage(LOG, `INGEST DONE: ${fileName}`, {
-    pages: totalPages, chunks: upserted, skipped: skippedCount, totalMs: totalTime,
+    pages: totalPages, chunks: upserted, skipped: skippedCount, totalMs: totalTime, dimension,
   });
 
   if (upserted === 0) {
     return {
+      success: false,
       fileId, fileName, pages: totalPages, chunks: 0, totalChars, chunkCount: chunks.length,
-      code: 'UPSERT_FAILED',
-      error: `Parsed ${totalChars} chars into ${chunks.length} chunks but Pinecone upsert failed.`,
+      code: 'UPSERT_FAILED', stage: 'pinecone', retryable: true,
+      message: `Parsed ${totalChars} chars into ${chunks.length} chunks but Pinecone upsert failed.`,
     };
   }
 
-  return { fileId, fileName, pages: totalPages, chunks: upserted, totalChars, chunkCount: chunks.length };
+  return {
+    success: true,
+    fileId, fileName, pages: totalPages, chunks: upserted, totalChars, chunkCount: chunks.length,
+    totalSuccess, totalFailed, dimension,
+  };
 }
 
 function extractKeywords(query) {
@@ -208,9 +225,13 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
 
   checkDeadline('embed-query');
   const embedStart = Date.now();
-  const embedResult = await embeddingService.embedSingle(question, { retries: 3 });
+  const embedResult = await embeddingService.embedSingle(question, {
+    retries: 3,
+    taskType: TaskType.RETRIEVAL_QUERY,
+    label: 'query-embed',
+  });
   if (!embedResult.success) {
-    throw new Error(`Query embedding failed: ${embedResult.error}`);
+    throw new Error(`Query embedding failed: ${embedResult.error} (status=${embedResult.status})`);
   }
   const queryVector = embedResult.vector;
   logger.timing(LOG, 'Query embed', embedStart);

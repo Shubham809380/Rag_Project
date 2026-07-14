@@ -10,6 +10,7 @@
 import fs from 'fs';
 import path from 'path';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { TaskType } from '@google/generative-ai';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { chunkByPages } from './chunker.js';
@@ -40,7 +41,7 @@ async function withRetry(fn, { label = 'operation', maxRetries = 3, baseDelay = 
     } catch (err) {
       lastError = err;
       const status = err.status || err.statusCode || 0;
-      const isRetryable = status === 429 || status === 503 || status === 500 || (err.message && (err.message.includes('ECONNRESET') || err.message.includes('ETIMEDOUT')));
+      const isRetryable = status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || (err.message && (err.message.includes('ECONNRESET') || err.message.includes('ETIMEDOUT')));
       if (!isRetryable || attempt === retries) throw err;
       const delay = Math.min(baseDelay * Math.pow(2, attempt - 1) + Math.random() * 500, maxDelay);
       console.log(`    [RETRY] ${label} attempt ${attempt}/${retries} failed (status=${status}), retrying in ${Math.round(delay)}ms...`);
@@ -88,59 +89,60 @@ function getEmbedModel() {
 export async function embedTexts(texts, { label = 'batch' } = {}) {
   const model = getEmbedModel();
   const results = [];
+  const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
-  for (let i = 0; i < texts.length; i += 10) {
-    const batch = texts.slice(i, i + 10);
-    const batchLabel = `${label}-${Math.floor(i / 10) + 1}`;
-    const batchStart = Date.now();
+  for (let i = 0; i < texts.length; i++) {
+    const text = texts[i];
+    const chunkLabel = `${label}-chunk-${i}`;
 
-    try {
-      const response = await withRetry(async () => {
-        const res = await model.batchEmbedContents({
-          requests: batch.map(text => ({
-            model: EMBED_MODEL,
-            content: { role: 'user', parts: [{ text }] },
-          })),
+    if (!text || text.trim().length < 5) {
+      console.error(`    [EMBED] ${chunkLabel}: SKIP - text too short (${text?.length || 0} chars)`);
+      results.push(null);
+      continue;
+    }
+
+    let embedded = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const res = await model.embedContent({
+          content: { role: 'user', parts: [{ text }] },
+          taskType: 'RETRIEVAL_DOCUMENT',
         });
-        return res;
-      }, { label: batchLabel, maxRetries: 2, baseDelay: 1000 });
-
-      const batchTime = Date.now() - batchStart;
-      const batchVectors = response.embeddings.map((e, idx) => {
-        if (!e || !e.values || e.values.length === 0) {
-          console.error(`    [EMBED] ${batchLabel}#${i + idx}: empty vector returned`);
-          return null;
+        const values = res.embedding?.values;
+        if (!values || values.length === 0 || !Array.isArray(values)) {
+          console.error(`    [EMBED] ${chunkLabel}: empty/invalid vector (attempt ${attempt})`);
+          continue;
         }
-        return e.values;
-      });
-
-      const validCount = batchVectors.filter(v => v !== null).length;
-      console.log(`    [EMBED] ${batchLabel}: ${validCount}/${batch.length} vectors (${batchVectors[0]?.length || 0}d) | ${batchTime}ms`);
-
-      for (let idx = 0; idx < batchVectors.length; idx++) {
-        if (batchVectors[idx] === null) {
-          console.error(`    [EMBED] ${batchLabel}#${i + idx}: SKIP - empty vector for text (${batch[idx].length} chars)`);
+        for (let v = 0; v < values.length; v++) {
+          if (typeof values[v] !== 'number' || isNaN(values[v])) {
+            console.error(`    [EMBED] ${chunkLabel}: non-number at index ${v} (attempt ${attempt})`);
+            continue;
+          }
         }
-        results.push(batchVectors[idx]);
+        results.push(values);
+        if (i > 0 && i % 10 === 0) {
+          const ok = results.filter(v => v !== null).length;
+          console.log(`    [EMBED] Progress: ${i + 1}/${texts.length} (${ok} ok)`);
+        }
+        embedded = true;
+        break;
+      } catch (err) {
+        const status = err.status || err.statusCode || 0;
+        const retryable = RETRYABLE.has(status) || (err.message && (err.message.includes('ECONNRESET') || err.message.includes('ETIMEDOUT')));
+        console.error(`    [EMBED] ${chunkLabel}: FAILED attempt ${attempt}/3 status=${status} model=${EMBED_MODEL}`);
+        console.error(`    [EMBED] ${chunkLabel}: error=${(err.message || '').substring(0, 300)}`);
+        if (err.errorDetails) console.error(`    [EMBED] ${chunkLabel}: details=${JSON.stringify(err.errorDetails).substring(0, 500)}`);
+        if (attempt < 3 && retryable) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1) + Math.random() * 500, 15000);
+          console.log(`    [EMBED] ${chunkLabel}: retrying in ${Math.round(delay)}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+        }
       }
-    } catch (err) {
-      const batchTime = Date.now() - batchStart;
-      const status = err.status || err.statusCode || 0;
-      const errMsg = err.message || 'unknown error';
-      console.error(`    [EMBED] ${batchLabel}: FAILED (${batchTime}ms) status=${status} model=${EMBED_MODEL}`);
-      console.error(`    [EMBED] ${batchLabel}: error=${errMsg.substring(0, 200)}`);
-      if (err.errorDetails) console.error(`    [EMBED] ${batchLabel}: details=${JSON.stringify(err.errorDetails).substring(0, 300)}`);
+    }
+    if (!embedded) results.push(null);
 
-      let hint = '';
-      if (status === 401 || status === 403) hint = ' -> Invalid GEMINI_API_KEY or API not enabled.';
-      else if (status === 404) hint = ` -> Model "${EMBED_MODEL}" not found. Check model name.`;
-      else if (status === 429) hint = ' -> Rate limited / quota exceeded.';
-      else if (status === 0) hint = ' -> Network error or SDK issue.';
-      if (hint) console.error(`    [EMBED] ${batchLabel}: HINT${hint}`);
-
-      for (let idx = 0; idx < batch.length; idx++) {
-        results.push(null);
-      }
+    if (i < texts.length - 1) {
+      await new Promise(r => setTimeout(r, 100));
     }
   }
 
@@ -152,7 +154,10 @@ export async function embedSingleText(text) {
   const start = Date.now();
   try {
     const result = await withRetry(async () => {
-      return await model.embedContent(text);
+      return await model.embedContent({
+        content: { role: 'user', parts: [{ text }] },
+        taskType: 'RETRIEVAL_QUERY',
+      });
     }, { label: 'embed-single', maxRetries: 2, baseDelay: 1000 });
     const elapsed = Date.now() - start;
     const values = result.embedding?.values;
@@ -497,7 +502,10 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
   const embedStart = Date.now();
   const model = getEmbedModel();
   const embedResponse = await withRetry(
-    () => model.embedContent(question),
+    () => model.embedContent({
+      content: { role: 'user', parts: [{ text: question }] },
+      taskType: 'RETRIEVAL_QUERY',
+    }),
     { label: 'embed-query', maxRetries: 2, baseDelay: 1000 }
   );
   const queryVector = embedResponse.embedding.values;

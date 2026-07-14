@@ -26,6 +26,12 @@ const isRender = !!process.env.RENDER;
 const isProduction = process.env.NODE_ENV === 'production';
 
 const GEMINI_API_KEY = requireEnv('GEMINI_API_KEY');
+if (!GEMINI_API_KEY || GEMINI_API_KEY.trim().length === 0) {
+  throw new Error('[FATAL] GEMINI_API_KEY is empty or whitespace. Set a valid key.');
+}
+if (GEMINI_API_KEY.startsWith('"') || GEMINI_API_KEY.startsWith("'")) {
+  console.warn('[WARN] GEMINI_API_KEY appears to have surrounding quotes. Remove them.');
+}
 const PINECONE_API_KEY = requireEnv('PINECONE_API_KEY');
 const PINECONE_INDEX_NAME = requireEnv('PINECONE_INDEX_NAME');
 const DATABASE_URL = requireEnv('DATABASE_URL');
