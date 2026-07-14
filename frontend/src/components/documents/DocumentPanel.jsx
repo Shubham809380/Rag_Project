@@ -15,7 +15,7 @@ function getFileColor(name) {
   return '#94A3B8';
 }
 
-export default function DocumentPanel({ documents = [], onDelete, isOpen, onClose, onUpload }) {
+export default function DocumentPanel({ documents = [], onDelete, isOpen, onClose, onUpload, uploadProgress }) {
   const [confirmId, setConfirmId] = useState(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const localFileInputRef = useRef(null);
@@ -69,6 +69,17 @@ export default function DocumentPanel({ documents = [], onDelete, isOpen, onClos
 
       {/* Upload area */}
       <div className="px-4 py-3 shrink-0">
+        {uploadProgress != null ? (
+          <div className="rounded-xl p-4" style={{ background: 'var(--bg-input)' }}>
+            <div className="flex items-center gap-2 mb-2">
+              <CloudUpload size={16} className="animate-bounce" style={{ color: '#3B82F6' }} />
+              <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Uploading... {uploadProgress}%</span>
+            </div>
+            <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border-default)' }}>
+              <div className="h-full rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%`, background: 'linear-gradient(90deg, #3B82F6, #22D3EE)' }} />
+            </div>
+          </div>
+        ) : (
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -90,9 +101,8 @@ export default function DocumentPanel({ documents = [], onDelete, isOpen, onClos
             </p>
           </div>
         </div>
+        )}
       </div>
-
-      {/* Document list */}
       <div className="flex-1 overflow-y-auto">
         {documents.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full px-6 text-center">

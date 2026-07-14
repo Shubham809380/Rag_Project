@@ -42,6 +42,9 @@ api.interceptors.response.use(
 );
 
 // Document
+let _uploadProgressCallback = null;
+export const setUploadProgressCallback = (cb) => { _uploadProgressCallback = cb; };
+
 export const uploadDocument = async (file) => {
   const formData = new FormData();
   formData.append('files', file);
@@ -50,7 +53,7 @@ export const uploadDocument = async (file) => {
     onUploadProgress: (e) => {
       if (e.total) {
         const percent = Math.round((e.loaded * 100) / e.total);
-        window.__uploadProgress?.(percent);
+        _uploadProgressCallback?.(percent);
       }
     },
   });

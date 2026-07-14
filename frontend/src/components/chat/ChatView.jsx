@@ -139,10 +139,18 @@ export default function ChatView({ messages = [], onSend, isLoading, onOpenDocs,
         ) : (
           <div ref={containerRef} className="flex-1 overflow-y-auto px-4 pb-4 pt-5">
             <div className="mx-auto flex max-w-3xl flex-col gap-4">
-              {messages.map((msg, i) => (
-                <ChatMessage key={msg.id} role={msg.role} content={msg.content} isLast={i === messages.length - 1 && isLoading}
-                  sources={msg.sources} confidence={msg.confidence} followUps={msg.followUps} onSend={onSend} onPreviewSource={onPreviewSource} />
-              ))}
+              {messages.map((msg, i) => {
+                const isError = msg.isError;
+                const handleRetry = isError ? () => {
+                  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+                  if (lastUserMsg) onSend(lastUserMsg.content);
+                } : undefined;
+                return (
+                  <ChatMessage key={msg.id} role={msg.role} content={msg.content} isLast={i === messages.length - 1 && isLoading}
+                    sources={msg.sources} confidence={msg.confidence} followUps={msg.followUps} onSend={onSend} onPreviewSource={onPreviewSource}
+                    isError={isError} onRetry={handleRetry} />
+                );
+              })}
               {isLoading && <MessageSkeleton />}
               <div ref={messagesEndRef} />
             </div>

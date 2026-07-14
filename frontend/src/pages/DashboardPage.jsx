@@ -14,6 +14,7 @@ import {
   deleteDocument,
   uploadDocument,
   analyzeDocument,
+  setUploadProgressCallback,
 } from '../services/api';
 
 export default function DashboardPage() {
@@ -28,6 +29,7 @@ export default function DashboardPage() {
   const [previewSource, setPreviewSource] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(null);
 
 
 
@@ -46,6 +48,11 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => { loadConversations(); loadDocuments(); }, [loadConversations, loadDocuments]);
+
+  useEffect(() => {
+    setUploadProgressCallback((pct) => setUploadProgress(pct));
+    return () => setUploadProgressCallback(null);
+  }, []);
 
   useEffect(() => {
     if (!activeConversationId) { setMessages([]); return; }
@@ -101,7 +108,7 @@ export default function DashboardPage() {
     } catch (err) {
       const errorMsg = err.response?.data?.message || err.message || 'Failed to get response';
       toast.error(errorMsg);
-      setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: 'assistant', content: `Sorry, I encountered an error: ${errorMsg}`, createdAt: new Date().toISOString() }]);
+      setMessages((prev) => [...prev, { id: `err-${Date.now()}`, role: 'assistant', content: `Sorry, I encountered an error: ${errorMsg}`, createdAt: new Date().toISOString(), isError: true }]);
     } finally { setIsLoading(false); }
   };
 
@@ -126,6 +133,8 @@ export default function DashboardPage() {
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Upload failed';
       toast.error(`Upload failed: ${msg}`, { id: t, duration: 5000 });
+    } finally {
+      setUploadProgress(null);
     }
   };
 
@@ -190,6 +199,7 @@ export default function DashboardPage() {
             onDelete={(id) => setDeleteTarget({ type: 'document', id })}
             isOpen={docsPanelOpen}
             onClose={() => setDocsPanelOpen(false)}
+            uploadProgress={uploadProgress}
           />
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { User, Bot, Copy, Check, ThumbsUp, ThumbsDown, RotateCcw } from "lucide-react";
+import { User, Bot, Copy, Check, ThumbsUp, ThumbsDown, RotateCcw, AlertTriangle } from "lucide-react";
 import SourcesList from "./SourcesList";
 
 function renderInline(text) {
@@ -79,7 +79,7 @@ function ActionButton({ icon: Icon, label, onClick, active, activeColor }) {
   );
 }
 
-export default function ChatMessage({ role, content, isLast, sources, confidence, followUps, onSend, onPreviewSource }) {
+export default function ChatMessage({ role, content, isLast, sources, confidence, followUps, onSend, onPreviewSource, isError, onRetry }) {
   const isUser = role === "user";
   const safeContent = content || '';
   const [copied, setCopied] = useState(false);
@@ -102,13 +102,29 @@ export default function ChatMessage({ role, content, isLast, sources, confidence
       <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-[82%]`}>
         <div className="px-3.5 py-2.5 text-[13.5px] leading-relaxed rounded-2xl"
           style={{
-            background: isUser ? 'linear-gradient(135deg, #3B82F6, #2563EB)' : 'var(--bg-card)',
+            background: isError ? 'rgba(239,68,68,0.06)' : isUser ? 'linear-gradient(135deg, #3B82F6, #2563EB)' : 'var(--bg-card)',
             color: isUser ? '#FFFFFF' : 'var(--text-secondary)',
-            border: isUser ? 'none' : '1px solid var(--border-subtle)',
+            border: isError ? '1px solid rgba(239,68,68,0.15)' : isUser ? 'none' : '1px solid var(--border-subtle)',
             borderRadius: isUser ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
           }}>
           {isUser ? (
             <span className="whitespace-pre-wrap">{safeContent}</span>
+          ) : isError ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" style={{ color: '#EF4444' }} />
+                <span style={{ color: '#EF4444' }}>{safeContent}</span>
+              </div>
+              {onRetry && (
+                <button onClick={onRetry}
+                  className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all focus-ring"
+                  style={{ background: 'rgba(239,68,68,0.08)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.15)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.14)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}>
+                  <RotateCcw size={12} /> Retry
+                </button>
+              )}
+            </div>
           ) : (
             <div className="space-y-0 markdown-body">
               {renderAssistantContent(safeContent)}
