@@ -29,11 +29,10 @@ const EMBED_MODEL = 'gemini-embedding-001';
 
 // --- Retry helper ---
 
-const isVercel = !!process.env.VERCEL;
-const PIPELINE_TIMEOUT_MS = isVercel ? 40000 : 120000;
+const PIPELINE_TIMEOUT_MS = 120000;
 
 async function withRetry(fn, { label = 'operation', maxRetries = 3, baseDelay = 1000, maxDelay = 15000 } = {}) {
-  const retries = isVercel ? Math.min(maxRetries, 2) : maxRetries;
+  const retries = maxRetries;
   let lastError;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -487,7 +486,7 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
 
   console.log(`\n${'='.repeat(60)}`);
   console.log(`  QUERY: "${question}"`);
-  console.log(`  Timeout: ${PIPELINE_TIMEOUT_MS}ms | Vercel: ${isVercel}`);
+  console.log(`  Timeout: ${PIPELINE_TIMEOUT_MS}ms`);
   console.log(`${'='.repeat(60)}`);
 
   function checkDeadline(step) {
@@ -622,7 +621,7 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
   // Step 7: Call LLM (with retries per model)
   let llmResponse = null;
   let usedModel = null;
-  const llmModels = isVercel ? LLM_MODELS.slice(0, 1) : LLM_MODELS;
+  const llmModels = LLM_MODELS;
 
   for (const modelName of llmModels) {
     checkDeadline(`llm-${modelName}`);
@@ -633,10 +632,10 @@ export async function queryPipeline({ question, fileId, userId, conversationId, 
         model: modelName,
         temperature: 0.2,
         maxRetries: 0,
-        timeout: isVercel ? 15000 : 60000,
+        timeout: 60000,
       });
 
-      console.log(`  [LLM] Trying ${modelName} (timeout: ${isVercel ? 15 : 60}s)...`);
+      console.log(`  [LLM] Trying ${modelName} (timeout: 60s)...`);
       llmResponse = await llm.invoke(llmMessages);
       usedModel = modelName;
       const llmTime = Date.now() - llmStart;

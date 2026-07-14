@@ -35,13 +35,17 @@ if (GEMINI_API_KEY.startsWith('"') || GEMINI_API_KEY.startsWith("'")) {
 const PINECONE_API_KEY = requireEnv('PINECONE_API_KEY');
 const PINECONE_INDEX_NAME = requireEnv('PINECONE_INDEX_NAME');
 const DATABASE_URL = requireEnv('DATABASE_URL');
-const JWT_SECRET = requireEnv('JWT_SECRET', isVercel || isRender ? undefined : 'insightrag-dev-secret-change-in-production');
+const JWT_SECRET = requireEnv('JWT_SECRET', isRender ? undefined : 'insightrag-dev-secret-change-in-production');
 
 if (!JWT_SECRET) {
   throw new Error('[FATAL] JWT_SECRET is not set. Auth will be broken.');
 }
 
-const backendUrl = toAbsoluteUrl(optionalEnv('BACKEND_URL'), 'http://localhost:5000');
+// On Render, prefer RENDER_EXTERNAL_URL; fall back to BACKEND_URL
+const backendUrl = toAbsoluteUrl(
+  optionalEnv('BACKEND_URL') || optionalEnv('RENDER_EXTERNAL_URL'),
+  'http://localhost:5000'
+);
 const frontendUrl = toAbsoluteUrl(optionalEnv('FRONTEND_URL'), 'http://localhost:5173');
 
 const config = {
@@ -91,11 +95,11 @@ const config = {
     maxFileSize: 20 * 1024 * 1024,
     allowedExtensions: ['.pdf', '.docx', '.txt', '.csv'],
     maxFiles: 10,
-    tempDir: isVercel ? '/tmp' : undefined,
+    tempDir: '/tmp',
   },
 
   pipeline: {
-    timeoutMs: isVercel ? 40000 : 120000,
+    timeoutMs: 120000,
     chunkSize: 850,
     chunkMaxSize: 1000,
     chunkMinSize: 50,

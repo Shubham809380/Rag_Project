@@ -15,7 +15,7 @@ router.get('/debug', (_req, res) => {
     backendUrl: config.auth.backendUrl,
     callbackUrl: config.auth.callbackUrl,
     isProduction: config.isProduction,
-    isVercel: config.isVercel,
+    isRender: config.isRender,
     hasJwtSecret: Boolean(config.auth.jwtSecret),
   });
 });

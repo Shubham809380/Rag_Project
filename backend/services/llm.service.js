@@ -13,7 +13,7 @@ function getClient(modelName) {
       model: modelName,
       temperature: config.gemini.temperature,
       maxRetries: 0,
-      timeout: config.isVercel ? 15000 : 60000,
+      timeout: 60000,
     });
   }
   return _clients[modelName];
@@ -26,7 +26,7 @@ export async function generateResponse(messages, { models } = {}) {
   for (const modelName of candidateModels) {
     const modelStart = Date.now();
     try {
-      logger.info(LOG, `Trying ${modelName}`, { timeout: config.isVercel ? 15 : 60 });
+      logger.info(LOG, `Trying ${modelName}`, { timeout: 60 });
       const client = getClient(modelName);
       const response = await client.invoke(messages);
       const elapsed = Date.now() - modelStart;
