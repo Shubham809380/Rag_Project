@@ -99,8 +99,11 @@ app.use('/api', globalLimiter);
 // API routes
 app.use('/api', apiRouter);
 
-// Health check endpoint (useful for Render)
-app.get('/health', (req, res) => {
+// Root + health endpoints
+app.get('/', (_req, res) => {
+  res.json({ name: 'InsightRAG API', status: 'running', health: '/health', api: '/api' });
+});
+app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
