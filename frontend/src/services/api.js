@@ -145,6 +145,11 @@ export const updateAdminUserRole = async (userId, role) => {
   return response.data;
 };
 
+export const getHistory = async () => {
+  const response = await api.get('/conversations');
+  return response.data;
+};
+
 export const trackVisit = async (page) => {
   try {
     await api.post('/track-visit', { page });

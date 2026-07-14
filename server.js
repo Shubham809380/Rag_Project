@@ -416,6 +416,26 @@ app.get('/api/conversations/:id/messages', authenticateToken, async (req, res) =
   }
 });
 
+// ==================== HISTORY ====================
+
+app.get('/api/history', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT c.id, c.title, c.created_at as date, c.updated_at as "createdAt",
+              (SELECT message FROM chat_messages WHERE conversation_id = c.id AND role = 'user' ORDER BY created_at ASC LIMIT 1) as question,
+              (SELECT message FROM chat_messages WHERE conversation_id = c.id AND role = 'assistant' ORDER BY created_at DESC LIMIT 1) as answer
+       FROM conversations c
+       WHERE c.user_id = $1
+       ORDER BY c.updated_at DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get history error:', error.message);
+    res.status(500).json({ message: 'Failed to fetch history' });
+  }
+});
+
 // ==================== DOCUMENTS ====================
 
 app.get('/api/documents', authenticateToken, async (req, res) => {
