@@ -1,4 +1,4 @@
-import { lazy, useEffect, useMemo, useState } from 'react';
+import { lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ShieldCheck, CloudOff, Activity, Cpu, Lock, Fingerprint, FileCheck, Workflow,
@@ -7,12 +7,32 @@ import {
 } from 'lucide-react';
 import { getSovereignStatus } from '../../services/sovereign';
 import ThreeScene, { use3DCapable } from '../../components/3d/ThreeScene';
+import useSceneGate from '../../components/3d/useSceneGate';
 import SectionHeader from '../../components/ui/SectionHeader';
 import GlowButton from '../../components/ui/GlowButton';
 import StatusPill from '../../components/ui/StatusPill';
 
-const IndustrialScene = lazy(() => import('../../components/3d/IndustrialCoreScene'));
-const AutomationScene = lazy(() => import('../../components/3d/AutomationNetworkScene'));
+const SovereignCoreScene = lazy(() => import('../../components/3d/SovereignCoreScene'));
+const AgentFlowScene = lazy(() => import('../../components/3d/AgentFlowScene'));
+const ModelRouterScene = lazy(() => import('../../components/3d/ModelRouterScene'));
+const KnowledgeSphereScene = lazy(() => import('../../components/3d/KnowledgeSphereScene'));
+
+// The hero 3D morphs through the product story as the user scrolls.
+const PHASE_SECTIONS = [
+  { refKey: 'pipeline', phase: 1, nav: 'Pipeline' },
+  { refKey: 'automation', phase: 2, nav: 'Automation' },
+  { refKey: 'capabilities', phase: 3, nav: 'Capabilities' },
+  { refKey: 'sovereignty', phase: 4, nav: 'Sovereignty' },
+];
+
+const ROUTER_TASKS = [
+  { label: 'Analyze scanned inspection report', tag: 'VISION + TEXT', target: 1 },
+  { label: 'Review Python / plant code', tag: 'CODING MODEL', target: 3 },
+  { label: 'Embed maintenance SOPs', tag: 'EMBEDDING', target: 2 },
+  { label: 'Summarize technical manual', tag: 'TEXT MODEL', target: 0 },
+];
+
+const KNOWLEDGE_FLOW = ['DOCS', 'OCR', 'CHUNK', 'EMBED', 'SQLITE VECTORS', 'RETRIEVE', 'LOCAL LLM'];
 
 const FEATURES = [
   {
@@ -85,6 +105,46 @@ export default function SovereignLanding() {
   const [status, setStatus] = useState(null);
   const [navOpen, setNavOpen] = useState(false);
   const [explore, setExplore] = useState('kb');
+  const [phase, setPhase] = useState(0);
+  const [activeNav, setActiveNav] = useState('Capabilities');
+  const [routerTarget, setRouterTarget] = useState(null);
+  const heroRef = useRef(null);
+  const automationSection = useRef(null);
+  const routingRef = useRef(null);
+  const knowledgeRef = useRef(null);
+  const automationOn = useSceneGate(automationSection);
+  const routingOn = useSceneGate(routingRef);
+  const knowledgeOn = useSceneGate(knowledgeRef);
+
+  // Scroll-driven narrative for the fixed background core.
+  useEffect(() => {
+    const els = { hero: heroRef.current };
+    PHASE_SECTIONS.forEach((s) => {
+      const el = document.getElementById(s.refKey);
+      if (el) els[s.refKey] = el;
+    });
+    const cfg = [
+      { el: els.hero, phase: 0, nav: null },
+      ...PHASE_SECTIONS.map((s) => ({ el: els[s.refKey], phase: s.phase, nav: s.nav })),
+    ].filter((c) => c.el);
+    if (!cfg.length || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (!e.isIntersecting) return;
+          const c = cfg.find((x) => x.el === e.target);
+          if (c) {
+            setPhase(c.phase);
+            if (c.nav) setActiveNav(c.nav);
+            else setActiveNav('Hero');
+          }
+        });
+      },
+      { rootMargin: '-38% 0px -58% 0px' },
+    );
+    cfg.forEach((c) => io.observe(c.el));
+    return () => io.disconnect();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,6 +176,15 @@ export default function SovereignLanding() {
 
   return (
     <div className="min-h-screen w-full bg-[#05070C] text-slate-200" style={{ fontFeatureSettings: "'cv02','cv03','cv04','cv11'" }}>
+      {/* Full-page 3D background — fixed, stays from top to the very bottom
+          of the landing page while content scrolls over it. z-0 (not negative):
+          a negative z-index would let the page's solid background paint over
+          the canvas and hide the 3D. All content sections are relative and
+          come later in DOM order, so they stack above it. */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <ThreeScene Scene={SovereignCoreScene} sceneProps={{ phase }} enabled={capable} mode="hero" />
+      </div>
+
       {/* ─────────────────────────────── NAV ─────────────────────────────── */}
       <header className="fixed top-0 inset-x-0 z-40 border-b transition-colors" style={{ background: 'rgba(5,7,12,0.78)', borderColor: 'rgba(148,163,184,0.1)', backdropFilter: 'blur(16px)' }}>
         <div className="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between">
@@ -133,7 +202,13 @@ export default function SovereignLanding() {
 
           <nav className="hidden lg:flex items-center gap-7 text-[13px] text-slate-400">
             {nav.map((n) => (
-              <a key={n.href} href={n.href} className="hover:text-sky-300 transition-colors">{n.label}</a>
+              <a key={n.href} href={n.href} className="relative transition-colors hover:text-sky-300"
+                style={activeNav === n.label ? { color: '#7DD3FC' } : undefined}>
+                {n.label}
+                {activeNav === n.label && (
+                  <span className="absolute -bottom-1.5 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg,#38BDF8,#22D3EE)' }} />
+                )}
+              </a>
             ))}
             <Link to="/workbench/login" className="hover:text-sky-300 transition-colors">Sign In</Link>
             <GlowButton to="/workbench/signup" small>Create Account</GlowButton>
@@ -157,8 +232,7 @@ export default function SovereignLanding() {
       </header>
 
       {/* ─────────────────────────────── HERO ─────────────────────────────── */}
-      <section className="relative min-h-screen overflow-hidden">
-        <ThreeScene Scene={IndustrialScene} enabled={capable} mode="hero" />
+      <section ref={heroRef} className="relative min-h-screen overflow-hidden">
         <div aria-hidden className="absolute inset-0" style={{ background: 'radial-gradient(70% 60% at 50% 30%, rgba(34,211,238,0.06), transparent 60%), linear-gradient(180deg, rgba(5,7,12,0.35) 0%, rgba(5,7,12,0) 40%, #05070C 92%)' }} />
 
         <div className="relative max-w-7xl mx-auto px-5 pt-36 pb-16 lg:pt-44 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 items-center">
@@ -263,12 +337,31 @@ export default function SovereignLanding() {
               </div>
             ))}
           </div>
+          <div ref={knowledgeRef} className="relative mt-10">
+            {knowledgeOn && (
+              <div
+                className="relative h-[260px] md:h-[320px] rounded-2xl overflow-hidden"
+                style={{ border: '1px solid rgba(148,163,184,0.1)' }}
+              >
+                <ThreeScene Scene={KnowledgeSphereScene} enabled={capable} mode="compact" />
+              </div>
+            )}
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-wider text-slate-500">
+              {KNOWLEDGE_FLOW.map((k, i) => (
+                <span key={k} className="flex items-center gap-2">
+                  <span className="mono-chip" style={{ color: ['#7DD3FC', '#38BDF8', '#38BDF8', '#38BDF8', '#34D399', '#2DD4BF', '#22D3EE'][i] }}>
+                    {k}
+                  </span>
+                  {i < KNOWLEDGE_FLOW.length - 1 && <span className="text-slate-700">→</span>}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
       {/* ────────────────── SMART AUTOMATION VISUALIZATION ────────────────── */}
-      <section id="automation" className="relative py-24 overflow-hidden">
-        <ThreeScene Scene={AutomationScene} enabled={capable} mode="compact" />
+      <section id="automation" ref={automationSection} className="relative py-24 overflow-hidden">
         <div aria-hidden className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(55% 50% at 50% 55%, rgba(34,211,238,0.05), transparent 65%)' }} />
         <div className="relative max-w-7xl mx-auto px-5">
           <SectionHeader
@@ -276,7 +369,15 @@ export default function SovereignLanding() {
             title="A local automation network"
             subtitle="Input, processing, automation and output — each stage executed inside the plant boundary."
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
+          {/* 3D agentic workflow — contained right below the heading.
+              A governed packet travels the full chain, every step visible. */}
+          {automationOn && (
+            <div className="relative mt-9 h-[360px] md:h-[440px] rounded-2xl overflow-hidden"
+              style={{ borderColor: 'rgba(148,163,184,0.1)', border: '1px solid rgba(148,163,184,0.1)' }}>
+              <ThreeScene Scene={AgentFlowScene} enabled={capable} mode="compact" />
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
             {AUTOMATION_STAGES.map((s, i) => (
               <div key={s.label} className="glass-panel rounded-xl p-4 text-center">
                 <div className="font-mono text-[11px] tracking-widest" style={{ color: ['#22D3EE', '#38BDF8', '#2DD4BF', '#34D399'][i] }}>
@@ -289,6 +390,58 @@ export default function SovereignLanding() {
           </div>
           <div className="mt-6 text-center text-[11px] font-mono text-slate-500">
             ◀ INPUT · PROCESSING · AUTOMATION · OUTPUT ▶
+          </div>
+        </div>
+      </section>
+
+      {/* ─────────────────────── MODEL ROUTING ─────────────────────── */}
+      <section id="routing" ref={routingRef} className="relative py-24 overflow-hidden">
+        <div aria-hidden className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(50% 50% at 50% 45%, rgba(34,211,238,0.05), transparent 65%)' }} />
+        <div className="relative max-w-7xl mx-auto px-5">
+          <SectionHeader
+            eyebrow="Intelligent Model Routing"
+            title="The right local model, chosen on-premise"
+            subtitle="Every task is classified and routed only to the models inside the plant — a major differentiator of this workbench."
+          />
+          {routingOn && (
+            <div
+              className="relative h-[320px] md:h-[380px] rounded-2xl overflow-hidden"
+              style={{ border: '1px solid rgba(148,163,184,0.1)' }}
+            >
+              <ThreeScene Scene={ModelRouterScene} sceneProps={{ target: routerTarget }} enabled={capable} mode="compact" />
+            </div>
+          )}
+          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {ROUTER_TASKS.map((t) => {
+              const active = routerTarget === t.target;
+              return (
+                <button
+                  key={t.label}
+                  type="button"
+                  onClick={() => setRouterTarget(t.target)}
+                  className="tech-card p-3.5 text-left focus:outline-none focus-visible:ring-2 ring-sky-400"
+                  style={active ? { borderColor: 'rgba(34,211,238,0.5)', boxShadow: '0 0 30px rgba(34,211,238,0.15)' } : undefined}
+                >
+                  <div className="text-[12px] leading-snug text-slate-200">{t.label}</div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="font-mono text-[10px] tracking-wider uppercase" style={{ color: active ? '#22D3EE' : '#5B6B82' }}>
+                      {t.tag}
+                    </span>
+                    <span className="w-2 h-2 rounded-full" style={{ background: active ? '#22D3EE' : '#223049', boxShadow: active ? '0 0 10px #22D3EE' : 'none' }} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setRouterTarget(null)}
+              className="text-[10px] font-mono uppercase tracking-widest px-3 py-1.5 rounded-full transition-colors"
+              style={{ color: routerTarget === null ? '#38BDF8' : '#5B6B82', border: '1px solid rgba(148,163,184,0.15)' }}
+            >
+              ⟲ auto demo mode
+            </button>
           </div>
         </div>
       </section>
