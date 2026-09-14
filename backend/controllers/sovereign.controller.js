@@ -308,7 +308,7 @@ export default function sovereignController(router) {
     const { decision = 'approved', note = '' } = req.body || {};
     const approver = sovereignUser(req);
     if (!canApprove(approver)) return res.status(403).json({ success: false, error: 'Your role cannot approve tasks' });
-    const result = await orchestrator().proceedAfterApproval({ taskId: req.params.id, approver, note, decision });
+    const result = await orchestrator().proceedAfterApproval({ taskId: req.params.id, approver, note, decision, ip: req.ip || req.socket?.remoteAddress || '', userAgent: req.headers['user-agent'] || '' });
     if (!result.ok) {
       const task = getSovereignDB().getTask(req.params.id);
       return res.status(result.statusCode || 400).json({

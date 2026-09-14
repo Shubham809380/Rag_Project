@@ -8,7 +8,7 @@ this host with the lightest local model stack. Results captured 2026-09-14.
 - OS: Windows 11, PowerShell 5.1, Node 22.20.0, SQLite (experimental) backend.
 - Model gateway: local Ollama on `127.0.0.1:11434`
 - Models present: `qwen3:8b`, `qwen3-vl:8b`, `nomic-embed-text`, `llama3.2`, `tinyllama`
-- Profile: `small`; egress: `deny`; code sandbox: Docker daemon unavailable this run (honest refusal, `test:tools` sandbox check still passes)
+- Profile: `small`; egress: `deny`; code sandbox: Docker Engine 29.5.3 daemon live this run (`test:docker` 3/3 PASS)
 - Vision/OCR: local `qwen3-vl:8b` + in-process pdf.js rasterizer (no poppler)
 
 ## Suite status
@@ -59,11 +59,22 @@ backup/restore integrity, JWT secret fail-fast (production requires a dedicated
 dedicated secret accepted, dev placeholder warns only), risk-coercion guard,
 supersede/versioning semantics.
 
-### `npm run test:docker` — SKIPPED (daemon unavailable this run)
-Docker Desktop is not running, so `docker-integration.js` honestly SKIPs:
-*"Sandbox refuses code execution honestly"*. The refusal path is still covered in
-`npm test` and `test:tools`; when the daemon is live the isolated sandbox
-(`--network none`, memory/cpu caps, `--rm`) is exercised directly.
+### `npm run test:docker` — 3 / 3 PASS (real runner, daemon live)
+Docker Engine 29.5.3 (Docker Desktop) is up. `docker-integration.js` runs the
+sandbox for real: an isolated container (`--network none`, memory/cpu caps,
+`--rm`) executes `print(6*7)` → 42; a second container's outbound HTTP is
+refused by the network guard; a third container runs ast-validated code with
+tests. The static code guard + honest-refusal path continues to ship regardless.
+
+### `npm run pilot` — 31 / 31 PASS (simulated E2E, live local models)
+`scripts/pilot-e2e.js` generates a clearly-labelled SIMULATED package (3 PDFs +
+a drawn equipment-tag image) and drives the production pipeline end-to-end:
+magic-byte signature checks, dedupe → auto-versioning → supersede exclusion,
+local-OCR ingestion, grounded RAG with page citations, cross-document conflict
+flagging, `SOVEREIGN_MIN_RELEVANCE` retrieval-threshold refusal, the orchestrator
+approval gate (wait-state → RBAC 403 → manager approve → local LLM), DOCX
+artifact on disk, separated evidence-grounded output, intact audit chain at >1.5k
+entries, zero outbound events in-run, and WAL-safe backup integrity.
 
 ## Why "honest refusal" is a feature
 
@@ -76,9 +87,9 @@ Every decision is recorded in the tamper-evident audit chain.
 ## Known host-side constraints (not product defects)
 
 - Tesseract 5.4.0 is installed and OCR is proven live on the scanned P-101 tag.
-- Docker Desktop is available but its daemon was not running during this report;
-  on hosts with Docker the sandbox runs network-less. On any host without Docker
-  the static code guard + honest refusal path still ship and are tested.
+- Docker Desktop is available and its daemon was live during this report:
+  `test:docker` passed 3/3 (network-less sandbox verified). On any host without
+  Docker the static code guard + honest refusal path still ship and are tested.
 - The verified claim is the **application-level** egress guard (defeats outbound
   `fetch`/DNS in `deny` mode). A production air-gap / full network isolation
   additionally requires

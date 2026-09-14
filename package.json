@@ -12,6 +12,7 @@
     "index": "node index.js",
     "seed": "node scripts/demo-seed.js",
     "demo": "node scripts/demo-run.js",
+    "pilot": "node scripts/pilot-e2e.js",
     "demo:flagship": "node scripts/demo-flagship.js",
     "assets": "node scripts/generate-demo-assets.js",
     "excel": "node scripts/demo-excel-analysis.js",

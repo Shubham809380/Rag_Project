@@ -206,6 +206,10 @@ export function assertSecureSecrets({ production = process.env.NODE_ENV === 'pro
     }
     if (s.length < 32) throw new Error('[FATAL] Sovereign JWT secret must be at least 32 characters in production.');
     if (KNOWN_DEV_SECRETS.includes(s)) throw new Error('[FATAL] The configured Sovereign JWT secret is a known development placeholder. Set a strong unique SOVEREIGN_JWT_SECRET.');
+    const demoFlag = String(process.env.DEMO_MODE || '').toLowerCase();
+    if (demoFlag === 'true' || demoFlag === 'auto' || demoFlag === '1') {
+      throw new Error('[FATAL] DEMO_MODE/demo identity must NEVER be enabled in production. Set DEMO_MODE=false (or unset) before go-live.');
+    }
   }
   if (KNOWN_DEV_SECRETS.slice(0, -1).includes(s) && !production) {
     console.warn('[WARN] Sovereign JWT secret is a known development placeholder — set a strong unique SOVEREIGN_JWT_SECRET for any real use.');

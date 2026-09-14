@@ -123,10 +123,12 @@ const restoredPath = path.join(tmpDir, 'restored.sqlite');
   // Production policy (hardening): the sovereign domain MUST use its own
   // dedicated SOVEREIGN_JWT_SECRET; it never silently falls back to JWT_SECRET.
   const prevEnv = process.env.SOVEREIGN_JWT_SECRET;
-  const didThrow = (secret, prod) => {
+  const prevDemo = process.env.DEMO_MODE;
+  const didThrow = (secret, prod, demoMode = '') => {
     const prev = sovereign.auth.jwtSecret;
     sovereign.auth.jwtSecret = secret;
-    try { assertSecureSecrets({ production: prod }); return false; } catch { return true; } finally { sovereign.auth.jwtSecret = prev; }
+    process.env.DEMO_MODE = demoMode;
+    try { assertSecureSecrets({ production: prod }); return false; } catch { return true; } finally { sovereign.auth.jwtSecret = prev; process.env.DEMO_MODE = prevDemo; }
   };
   const strong = () => crypto.randomBytes(32).toString('hex');
   try {
@@ -143,8 +145,11 @@ const restoredPath = path.join(tmpDir, 'restored.sqlite');
     check('production + short secret(<32) → throw', didThrow('short-secret', true), 'weak secret must fail fast');
     check('production + strong dedicated secret → allowed', !didThrow(good, true), 'strong unique dedicated secret accepted');
     check('dev + known dev secret → warn (no throw)', !didThrow('insightrag-dev-secret-change-in-production', false) === true, 'dev placeholder warns only');
+    check('production + strong secret + DEMO_MODE=true → throw', didThrow(good, true, 'true'), 'demo mode must never run in production');
+    check('production + strong secret + DEMO_MODE unset → allowed', !didThrow(good, true), 'demo-mode off is required for production boot');
   } finally {
     process.env.SOVEREIGN_JWT_SECRET = prevEnv;
+    process.env.DEMO_MODE = prevDemo;
   }
 }
 

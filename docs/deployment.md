@@ -31,9 +31,16 @@
 ```bash
 # 1) env
 cp .env.example .env          # keep SOVEREIGN_MODE=local (default), SOVEREIGN_HW_PROFILE=small
+```
+> **Production secret (mandatory):** set a strong, unique `SOVEREIGN_JWT_SECRET` (≥ 32
+> characters, never reused from `JWT_SECRET`). In production the server refuses to
+> boot without it — no silent fallback. See `docs/limitations.md`.
 # 2) seed sample KB (optional)
 npm run seed
+# 2b) regenerate simulated dataset fixtures (needed before test:scanned / pilot on a fresh clone)
+npm run assets
 # 3) verify the deterministic walkthrough
+npm run pilot                  # SIMULATED package → ingest → RAG → gate → approval → artifact → audit (31 checks)
 npm run demo                  # seed → classify → gate → retrieval → packet → artifact → audit
 npm run eval                  # 26 automated self-checks (routing, gating, RAG, egress, tools, artifacts, audit)
 npm test                      # 48 fast unit/integration checks

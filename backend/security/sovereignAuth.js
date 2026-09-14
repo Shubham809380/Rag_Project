@@ -148,10 +148,19 @@ export function ensureBootstrapAdmin() {
 // ── Login rate limiting (in-memory, per email + IP) ─────────────────────────
 
 const attemptStore = new Map();
+// Upper bound on the attempt table — rotating email:ip keys must not exhaust
+// process memory. When exceeded, oldest-recorded entries are evicted first.
+const ATTEMPT_STORE_MAX = 10000;
 
 function keyFor(req, email) {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
   return `${String(email).toLowerCase()}:${ip}`;
+}
+
+function evictIfNeeded() {
+  if (attemptStore.size < ATTEMPT_STORE_MAX) return;
+  const oldest = Array.from(attemptStore.keys()).slice(0, Math.ceil(ATTEMPT_STORE_MAX * 0.25));
+  for (const k of oldest) attemptStore.delete(k);
 }
 
 export function getLoginAttempts(req, email) {
@@ -169,6 +178,7 @@ export function registerFailedLogin(req, email) {
     logger.warn(LOG, 'Login lockout triggered', { key: k, lockMs: sovereign.auth.lockoutMs });
   }
   attemptStore.set(k, rec);
+  evictIfNeeded();
   return rec;
 }
 

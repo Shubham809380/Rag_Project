@@ -1,6 +1,9 @@
 import config from '../config/index.js';
 
-const fetchGlobal = globalThis.fetch;
+// Lazy accessor: reads globalThis.fetch at call time so the egress monitor's
+// process-boundary patch is always effective. The module-scope capture captured
+// the ORIGINAL fetch before the monitor patched globalThis.fetch.
+function fetchGlobal(...args) { return globalThis.fetch(...args); }
 const MAX_RESULTS = 8;
 
 // AbortSignal.timeout polyfill (Node <17.3)

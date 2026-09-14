@@ -137,6 +137,7 @@ routers across `reasoning_local`, `coding_local`, `vision_local` and
 | `npm run seed` | Ingest the sample SOP / policy / LOTO knowledge base |
 | `npm run demo` | Deterministic end-to-end example run |
 | `npm run demo:flagship` | Flagship example: scanned report → approval → deliverable |
+| `npm run pilot` | Pilot validation E2E: SIMULATED package → ingest → RAG → gate → approval → artifact → audit |
 | `npm run assets` | Regenerate simulated dataset files |
 | `npm run excel` | Excel/telemetry analysis workflow |
 | `npm run eval` | Offline self-check suite (26 checks) |
@@ -146,7 +147,7 @@ routers across `reasoning_local`, `coding_local`, `vision_local` and
 | `npm run test:security` | Prompt injection, unauthorized approval, bypass tests |
 | `npm run test:egress` | Egress guard verification |
 | `npm run test:auth` | Authentication suite (21 tests) |
-| `npm run test:hardening` | Hardening suite (53 tests) |
+| `npm run test:hardening` | Hardening suite (55 tests) |
 | `npm run test:docker` | Docker sandbox integration |
 
 ---
@@ -259,6 +260,51 @@ See [docs/security.md](docs/security.md) for the full threat model and controls.
 | [Limitations](docs/limitations.md) | Risk register & known limitations |
 | [Test Report](docs/test-report.md) | Live suite results |
 | [Contributing](CONTRIBUTING.md) | How to contribute |
+
+---
+
+## Production-Readiness Status
+
+Final production-readiness audit performed on the current tree.
+
+**Classification: READY FOR CONTROLLED PILOT**
+
+### Audit fixes applied
+
+| Severity | Change |
+|----------|--------|
+| Critical | `websearch.service.js` — egress bypass closed (lazy `fetch` accessor so the egress guard's patch is always effective) |
+| High | Sovereign auth login/register now rate-limited (`authLimiter`) |
+| High | Sovereign auth attempt-store bounded (`ATTEMPT_STORE_MAX=10000`, oldest-25% eviction) |
+| Medium | Approval audit trails record `ip`, `userAgent`, and true `approverRole` (non-repudiation) |
+| Medium | Approval resume looks up the original submitter role from DB (no hardcoded `engineer`) |
+| Low | Production boot fails fast if `DEMO_MODE=true|auto|1` (no demo bypass of secret rotation) |
+
+### Regression status
+
+```
+npm test              48/48 PASS
+test:auth             21/21 PASS
+test:security          9/ 9 PASS
+test:hardening        55/55 PASS
+test:tools             8/ 8 PASS
+test:scanned           6/ 6 PASS
+test:egress            PASS (outbound blocked, audit intact)
+eval                  26/26 PASS
+pilot                 31/31 PASS (isolated)
+test:docker            3/ 3 PASS
+frontend build (vite)  ✓ 1.57s
+frontend lint          0 errors, 7 pre-existing warnings
+```
+
+### Honest limitations
+
+- Vision model `qwen3-vl:8b` live inference not verified (4 GB VRAM limit).
+- Docker compose image build not executed on Windows; config validated only.
+- "Air-gapped" is **not** claimed — the app ships an application-layer egress guard;
+  true air-gapping requires OS/network-layer firewall + physical isolation.
+- Pilot E2E may report a nonzero egress delta when run concurrently with suites that
+  intentionally trigger outbound blocks (shared SQLite); run `npm run pilot` isolated.
 
 ---
 

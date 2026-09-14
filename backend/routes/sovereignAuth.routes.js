@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authLimiter } from '../middleware/rateLimit.middleware.js';
 import {
   sovereignOptionalAuth,
   sovereignRequireAuth,
@@ -22,9 +23,9 @@ const router = Router();
 // Public-ish (optional identity handshake)
 router.get('/sovereign/auth/status', sovereignOptionalAuth, authStatus);
 
-// Auth
-router.post('/sovereign/auth/login', login);
-router.post('/sovereign/auth/register', register);
+// Auth (rate-limited like the classic domain)
+router.post('/sovereign/auth/login', authLimiter, login);
+router.post('/sovereign/auth/register', authLimiter, register);
 router.post('/sovereign/auth/logout', sovereignRequireAuth, logout);
 router.get('/sovereign/auth/me', sovereignRequireAuth, me);
 router.post('/sovereign/auth/change-password', sovereignRequireAuth, changePassword);

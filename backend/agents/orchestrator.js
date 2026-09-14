@@ -296,7 +296,7 @@ export class Orchestrator {
     return { status, taskId, task: db.getTask(taskId), generated: false, message: gen.message, packet };
   }
 
-  async proceedAfterApproval({ taskId, approver, note = '', decision = 'approved' }) {
+  async proceedAfterApproval({ taskId, approver, note = '', decision = 'approved', ip = '', userAgent = '' }) {
     const db = this._db();
     const task = db.getTask(taskId);
     if (!task) return { ok: false, reason: 'Task not found', statusCode: 404 };
@@ -308,14 +308,23 @@ export class Orchestrator {
     if (!['approved', 'rejected'].includes(decision)) return { ok: false, reason: 'decision must be approved|rejected', statusCode: 400 };
 
     db.addApproval({ taskId, userId: userN.id, action: decision, note });
-    auditService().record({ category: CATEGORY.SECURITY, action: 'task_approval', severity: 'info', user: approver, details: { taskId, decision, note } });
+    auditService().record({ category: CATEGORY.SECURITY, action: 'task_approval', severity: 'info', user: approver, ip, userAgent, details: { taskId, decision, note, approverRole: userN.role } });
 
     if (decision === 'rejected') {
       db.updateTask(taskId, { status: 'rejected', approval_status: 'rejected', approver_user_id: userN.id, approval_note: note });
       return { ok: true, status: 'rejected', taskId };
     }
     db.updateTask(taskId, { approval_status: 'approved' });
-    return { ok: true, ...(await this.execute({ taskId, input: task.question, cls: { taskType: task.taskType, modality: 'text' }, user: { id: task.userId, email: task.user_email, role: 'engineer' }, sessionId: null })) };
+    // Resume with the ORIGINAL submitter (role read from the DB), so execution
+    // audit metadata is accurate instead of a hardcoded 'engineer'.
+    const submitter = task.userId ? db.getUser(task.userId) : null;
+    const submitterUser = {
+      id: task.userId,
+      email: task.user_email,
+      name: submitter?.full_name || submitter?.name || null,
+      role: submitter?.role || 'analyst',
+    };
+    return { ok: true, ...(await this.execute({ taskId, input: task.question, cls: { taskType: task.taskType, modality: 'text' }, user: submitterUser, sessionId: null })) };
   }
 }
 
