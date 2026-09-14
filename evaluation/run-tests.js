@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { getSovereignDB } from '../backend/storage/sovereignDB.js';
@@ -118,7 +119,7 @@ console.log('\n[tests] 5 — Audit chain integrity (append-only, hash-linked)');
   check('model_selected audit event exists', db2.listAudit({ limit: 2000, category: 'agent' }).some(e => e.action === 'model_selected'));
 }
 
-const FEATURE_PNG = 'C:/Users/VICTUS/AppData/Local/Temp/opencode/test-label.png';
+const FEATURE_PNG = path.join(os.tmpdir(), 'sovereign-smoke', 'test-label.png');
 
 // ────────────────────────────────────────────────────────────────────────────
 console.log('\n[tests] 6 — Sovereign pipeline: images NEVER touch cloud OCR');

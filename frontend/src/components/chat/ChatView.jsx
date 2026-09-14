@@ -93,7 +93,7 @@ export default function ChatView({ messages = [], onSend, isLoading, onOpenDocs,
                 How can I help with your <span className="gradient-text">documents?</span>
               </h1>
               <p className="text-[14px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                Upload your documents and ask questions. InsightRAG will find grounded answers from your files.
+                Upload your documents and ask questions. Sovereign AI Workbench will find grounded answers from your files.
               </p>
             </motion.div>
 

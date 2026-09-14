@@ -152,7 +152,7 @@ export const globalSovereignSearch = async (q) => {
   return r.data;
 };
 
-// Demo control panel: the SIH judge "run a real check" endpoints.
+// System verification panel: run a real capability check against the live core.
 export const listSovereignTests = async () => {
   const r = await api.get('/sovereign/tests');
   return r.data;

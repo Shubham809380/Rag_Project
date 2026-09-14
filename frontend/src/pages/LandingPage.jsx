@@ -15,7 +15,7 @@ const features = [
   { icon: Brain, title: 'Context Understanding', desc: 'Advanced RAG technology ensures answers are grounded in your actual document content, not hallucinated.' },
   { icon: Zap, title: 'Fast Processing', desc: 'Documents are split, embedded, and indexed in seconds. Get answers almost instantly after upload.' },
   { icon: Shield, title: 'Secure Accounts', desc: 'Your data is protected with secure Google authentication and user-scoped document isolation.' },
-  { icon: Globe, title: 'Responsive Design', desc: 'Use InsightRAG on any device — desktop, tablet, or mobile. Fully responsive interface.' },
+  { icon: Globe, title: 'Responsive Design', desc: 'Use Sovereign AI Workbench on any device — desktop, tablet, or mobile. Fully responsive interface.' },
   { icon: Sparkles, title: 'Prompt Templates', desc: 'Choose from built-in prompt templates for summarization, FAQ generation, key points extraction, and more.' },
   { icon: FileText, title: 'Multiple Formats', desc: 'Support for PDF, DOCX, TXT, and CSV files. Upload up to 10 documents, 20MB each, in a single session.' },
 ];
@@ -276,7 +276,7 @@ export default function LandingPage() {
               </span>
             </h2>
             <p className="text-fg-secondary max-w-xl mx-auto">
-              InsightRAG is used by professionals across various industries and roles.
+              Sovereign AI Workbench is used by professionals across various industries and roles.
             </p>
           </motion.div>
 
@@ -319,13 +319,13 @@ export default function LandingPage() {
               Manually
             </h2>
             <p className="text-fg-secondary mb-8 max-w-lg mx-auto">
-              Upload your documents and let InsightRAG find the information for you.
+              Upload your documents and let Sovereign AI Workbench find the information for you.
             </p>
             <Link
               to="/signup"
               className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-semibold text-white bg-gradient-to-r from-blue-500 to-cyan-400 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300 hover:-translate-y-0.5"
             >
-              Start Using InsightRAG
+              Start Using Sovereign AI Workbench
               <ArrowRight className="w-4 h-4" />
             </Link>
           </motion.div>

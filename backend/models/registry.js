@@ -8,16 +8,17 @@ const LOG = 'ModelRegistry';
 const SOVEREIGN_MODEL_SYNC_TTL_MS = 30_000;
 // A slot that failed once should be retried quickly: heavy local models often
 // fail once during a model-swap and then work fine. Keep the degrade window
-// short so a single transient blip does not lock a slot out of a live demo.
+// short so a single transient blip does not lock a slot out of a live session.
 const MODEL_FAILURE_COOLDOWN_MS = 2 * 60 * 1000;
 
 // Model keys map to actual gateway model ids. Builtin defaults are hardware-profile
 // aware and can be overridden by admin. The EXACT model id is never hard-coded in
 // business logic — only these slot keys are referenced.
 //
-// MVP stack (MRPL 26117): qwen3:8b (reasoning/agent), qwen3-vl:8b (vision/OCR),
-// nomic-embed-text (embeddings). Coding reuses the reasoning model for the MVP;
-// swap coding_local to a dedicated coder (e.g. qwen3-coder) with no other change.
+// Default stack: qwen3:8b (reasoning/agent), qwen3-vl:8b (vision/OCR),
+// nomic-embed-text (embeddings). Coding reuses the reasoning model for the
+// default; swap coding_local to a dedicated coder (e.g. qwen3-coder) with no
+// other change.
 //
 // Env overrides let an operator adapt the SAME profile to constrained hardware
 // without touching code — e.g. SOVEREIGN_MODEL_REASONING=llama3.2 switches the

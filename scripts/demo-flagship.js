@@ -1,6 +1,6 @@
-// Flagship end-to-end demo for SIH26117 — "killer demo" walkthrough.
+// Flagship end-to-end example — "killer walkthrough".
 //
-// Mirrors the 6-minute judge script (docs/SIH26117-design.md §21):
+// Mirrors the narrated example flow (docs/architecture.md):
 //   1. Seed the local knowledge base (SOPs, LOTO, inspection report)
 //   2. Scene: inspector asks for an approval note driven by a (SIMULATED)
 //      inspection report + SOP-07/POL-12
@@ -147,7 +147,7 @@ async function printSovereigntyReport() {
 }
 
 async function main() {
-  console.log(box('SOVEREIGN INDUSTRIAL AI WORKBENCH — FLAGSHIP DEMO (SIH26117)'));
+  console.log(box('SOVEREIGN AI WORKBENCH — FLAGSHIP EXAMPLE RUN'));
   await ensureAssetsAndSeed();
   const { q, c } = printGateQuestion();
   await printRouterVerdict(q, c);

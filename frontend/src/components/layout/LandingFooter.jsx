@@ -11,7 +11,7 @@ export default function LandingFooter() {
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-xl flex items-center justify-center">
                 <FileSearch className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-heading">InsightRAG</span>
+              <span className="font-bold text-heading">Sovereign AI Workbench</span>
             </Link>
             <p className="text-sm text-fg-secondary leading-relaxed max-w-xs">
               AI-powered document analysis platform. Upload documents, ask questions, and get instant intelligent answers.
@@ -53,7 +53,7 @@ export default function LandingFooter() {
           <div>
             <h4 className="font-semibold text-heading mb-4 text-sm">Environment</h4>
             <div className="text-xs leading-relaxed space-y-1.5" style={{ color: 'var(--text-muted)' }}>
-              <div>Air-gapped · on-premise</div>
+              <div>Network-isolated · on-premise</div>
               <div>No cloud · no external APIs</div>
               <div>All data local to this machine</div>
             </div>
@@ -62,7 +62,7 @@ export default function LandingFooter() {
 
         <div className="mt-10 pt-6 text-center" style={{ borderTop: '1px solid var(--border-default)' }}>
           <p className="text-xs text-fg-muted">
-            &copy; 2026 InsightRAG. All rights reserved.
+            &copy; 2026 Sovereign AI Workbench. All rights reserved.
           </p>
         </div>
       </div>

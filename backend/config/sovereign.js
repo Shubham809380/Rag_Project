@@ -57,7 +57,7 @@ const PROBE_ENABLED = (optionalEnv('SOVEREIGN_PROBE', 'true') || '').toLowerCase
 const PROBE_TARGETS = (optionalEnv('SOVEREIGN_PROBE_TARGETS', '1.1.1.1:53,8.8.8.8:53')
   .split(',').map(s => s.trim()).filter(Boolean));
 
-// Demo identity — hackathon venue convenience. NEVER enable in production.
+// Demo identity — development convenience. NEVER enable in production.
 // When SOVEREIGN_DEMO_USER is set, /api/sovereign/demo-login issues a scoped JWT.
 const DEMO_USER_ID = optionalEnv('SOVEREIGN_DEMO_USER_ID', '');
 const DEMO_USER_EMAIL = optionalEnv('SOVEREIGN_DEMO_USER_EMAIL', '');
@@ -114,8 +114,11 @@ const sovereign = {
     demoModeEnabled: DEMO_MODE_ENABLED,
   },
   auth: {
-    // NO hard-coded fallback secret. If neither SOVEREIGN_JWT_SECRET nor
-    // JWT_SECRET is present we FAIL FAST below rather than run with a known key.
+    // NO hard-coded fallback secret. SOVEREIGN_JWT_SECRET is the DEDICATED secret
+    // for the sovereign domain. JWT_SECRET is accepted ONLY as a development
+    // convenience; assertSecureSecrets() fails fast in production when
+    // SOVEREIGN_JWT_SECRET is missing — the sovereign domain never silently
+    // inherits the classic-domain secret in production.
     jwtSecret: process.env.SOVEREIGN_JWT_SECRET || process.env.JWT_SECRET || '',
     jwtExpiresIn: optionalEnv('SOVEREIGN_JWT_TTL', '8h'),
     cookieName: 'sovereign_token',
@@ -190,12 +193,17 @@ const KNOWN_DEV_SECRETS = [
 ];
 
 // Fail-fast, startup-time secret validation. Called from server.js on boot.
+// Production policy: the sovereign domain MUST use its own dedicated
+// SOVEREIGN_JWT_SECRET. It never silently falls back to the classic JWT_SECRET.
 export function assertSecureSecrets({ production = process.env.NODE_ENV === 'production' } = {}) {
   const s = sovereign.auth.jwtSecret;
   if (!s) {
-    throw new Error('[FATAL] No Sovereign JWT secret configured. Set SOVEREIGN_JWT_SECRET (or JWT_SECRET). Refusing to start with an empty secret.');
+    throw new Error('[FATAL] No Sovereign JWT secret configured. Set SOVEREIGN_JWT_SECRET (or JWT_SECRET for development only). Refusing to start with an empty secret.');
   }
   if (production) {
+    if (!process.env.SOVEREIGN_JWT_SECRET) {
+      throw new Error('[FATAL] SOVEREIGN_JWT_SECRET is not set. The sovereign domain requires its own dedicated secret in production — refusing to fall back to JWT_SECRET.');
+    }
     if (s.length < 32) throw new Error('[FATAL] Sovereign JWT secret must be at least 32 characters in production.');
     if (KNOWN_DEV_SECRETS.includes(s)) throw new Error('[FATAL] The configured Sovereign JWT secret is a known development placeholder. Set a strong unique SOVEREIGN_JWT_SECRET.');
   }

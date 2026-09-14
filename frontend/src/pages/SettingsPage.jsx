@@ -40,7 +40,7 @@ export default function SettingsPage() {
     <AppLayout title={t('settings')}>
       <Toaster position="top-right" toastOptions={{ style: { background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-default)', borderRadius: '12px', fontSize: '13px' } }} />
       <div className="max-w-3xl mx-auto p-6">
-        <PageHeader title={t('settings')} subtitle="Configure how InsightRAG answers for you"
+        <PageHeader title={t('settings')} subtitle="Configure how Sovereign AI Workbench answers for you"
           actions={<PrimaryButton onClick={save} disabled={saving}>{saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} {t('save')}</PrimaryButton>} />
 
         <div className="space-y-5">

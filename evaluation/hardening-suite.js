@@ -120,17 +120,32 @@ const restoredPath = path.join(tmpDir, 'restored.sqlite');
 
 // ── 5. JWT secret fail-fast ─────────────────────────────────────────────────
 {
+  // Production policy (hardening): the sovereign domain MUST use its own
+  // dedicated SOVEREIGN_JWT_SECRET; it never silently falls back to JWT_SECRET.
+  const prevEnv = process.env.SOVEREIGN_JWT_SECRET;
   const didThrow = (secret, prod) => {
     const prev = sovereign.auth.jwtSecret;
     sovereign.auth.jwtSecret = secret;
     try { assertSecureSecrets({ production: prod }); return false; } catch { return true; } finally { sovereign.auth.jwtSecret = prev; }
   };
-  check('production + empty secret → throw', didThrow('', true), 'empty secret must fail fast');
-  check('production + known dev secret → throw', didThrow('sovereign-local-dev-secret-change-me', true), 'known placeholder must fail fast');
-  check('production + known classic dev secret → throw', didThrow('insightrag-dev-secret-change-in-production', true), 'classic placeholder must fail fast');
-  check('production + short secret(<32) → throw', didThrow('short-secret', true), 'weak secret must fail fast');
-  check('production + strong secret → allowed', !didThrow(crypto.randomBytes(32).toString('hex'), true), 'strong unique secret accepted');
-  check('dev + known dev secret → warn (no throw)', !didThrow('insightrag-dev-secret-change-in-production', false) === true, 'dev placeholder warns only');
+  const strong = () => crypto.randomBytes(32).toString('hex');
+  try {
+    process.env.SOVEREIGN_JWT_SECRET = '';
+    check('production + empty secret → throw', didThrow('', true), 'empty secret must fail fast');
+    check('production + SOVEREIGN_JWT_SECRET missing → throw', didThrow(strong(), true), 'dedicated secret mandatory, no JWT_SECRET fallback');
+
+    process.env.SOVEREIGN_JWT_SECRET = 'sovereign-local-dev-secret-change-me';
+    check('production + known dev secret → throw', didThrow('sovereign-local-dev-secret-change-me', true), 'known placeholder must fail fast');
+    check('production + known classic dev secret → throw', didThrow('insightrag-dev-secret-change-in-production', true), 'classic placeholder must fail fast');
+
+    const good = strong();
+    process.env.SOVEREIGN_JWT_SECRET = good;
+    check('production + short secret(<32) → throw', didThrow('short-secret', true), 'weak secret must fail fast');
+    check('production + strong dedicated secret → allowed', !didThrow(good, true), 'strong unique dedicated secret accepted');
+    check('dev + known dev secret → warn (no throw)', !didThrow('insightrag-dev-secret-change-in-production', false) === true, 'dev placeholder warns only');
+  } finally {
+    process.env.SOVEREIGN_JWT_SECRET = prevEnv;
+  }
 }
 
 // ── 6. Approval-risk validation at the DB boundary ──────────────────────────

@@ -371,7 +371,7 @@ export default function sovereignController(router) {
     res.json({ entries, chainVerified: db.verifyAuditChain() });
   }));
 
-  // ── demo control panel: real capability tests (SIH judge demo) ────────────
+  // ── system verification panel: real capability tests ────────────────────
   router.get('/sovereign/tests', sovereignRoleAtLeast(PERM.PRIVILEGED), asyncH(async (req, res) => {
     res.json({ ok: true, available: Object.keys(DEMO_TESTS), note: 'POST /sovereign/tests/:name runs a real check' });
   }));

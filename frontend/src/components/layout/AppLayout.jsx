@@ -67,7 +67,7 @@ export default function AppLayout({ children, title }) {
           {!collapsed && (
             isSovereignRoute
               ? <span className="text-[12px] font-bold uppercase tracking-widest text-heading">Sovereign</span>
-              : <span className="text-[15px] font-bold text-heading">InsightRAG</span>
+              : <span className="text-[15px] font-bold text-heading">Sovereign AI Workbench</span>
           )}
         </Link>
       </div>
@@ -174,7 +174,7 @@ export default function AppLayout({ children, title }) {
             <button onClick={() => setCollapsed((v) => !v)} className="hidden md:block p-2 rounded-lg text-fg-muted hover:bg-card-hover">
               {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
             </button>
-            <h1 className="text-[16px] font-semibold text-heading">{title || (isSovereignRoute ? 'Sovereign Workbench' : 'InsightRAG')}</h1>
+            <h1 className="text-[16px] font-semibold text-heading">{title || (isSovereignRoute ? 'Sovereign Workbench' : 'Sovereign AI Workbench')}</h1>
           </div>
           <div className="flex items-center gap-1.5">
             <ThemeToggle />

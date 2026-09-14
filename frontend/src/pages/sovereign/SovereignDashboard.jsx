@@ -321,7 +321,7 @@ export default function SovereignDashboard() {
               </div>
               <div className="h-px flex-1 mx-2 relative" style={{ background: 'linear-gradient(90deg, rgba(239,68,68,0.6), rgba(239,68,68,0.2))' }} />
               <div className="text-center">
-                <div className="text-[9px] font-mono tracking-[0.18em] text-cyan-300/80">AIR-GAPPED ZONE</div>
+                <div className="text-[9px] font-mono tracking-[0.18em] text-cyan-300/80">NETWORK-ISOLATED ZONE</div>
                 <div className="mt-0.5 text-[11px] font-bold text-cyan-300">LOCAL AI WORKBENCH</div>
               </div>
             </div>

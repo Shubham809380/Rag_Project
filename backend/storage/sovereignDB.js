@@ -339,10 +339,10 @@ export class SovereignDB {
     }
     return false;
   }
-  listAccessibleDocumentIds(user, { collectionId = null } = {}) {
-    // IMPORTANT: do NOT pre-filter by owner here — documents granted to a user
+listAccessibleDocumentIds(user, { collectionId = null } = {}) {
+    // IMPORTANT: do NOT pre-filter by owner here - documents granted to a user
     // or role are owned by OTHER users. Fetch all then scope explicitly.
-    const all = this.listDocuments({ collectionId });
+    const all = this.listDocuments({ collectionId }).filter(d => !d.superseded);
     const accessible = [];
     for (const d of all) {
       if (user.isAdmin || d.ownerUserId === user.id || this.canAccessDocument(d.id, user)) accessible.push(d.id);

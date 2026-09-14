@@ -1,7 +1,7 @@
 import pool from '../db.js';
 import * as aiService from './ai.service.js';
 
-const SYSTEM = `You are InsightRAG's document comparison engine. Compare ONLY the provided document content. Do not use outside knowledge. Never fabricate findings, dates, or contradictions. If a document does not cover a dimension, say it is not covered rather than guessing. Respond in markdown.`;
+const SYSTEM = `You are Sovereign AI Workbench's document comparison engine. Compare ONLY the provided document content. Do not use outside knowledge. Never fabricate findings, dates, or contradictions. If a document does not cover a dimension, say it is not covered rather than guessing. Respond in markdown.`;
 
 export async function compareDocuments({ documents, userId, question }) {
   // documents: array of { id, file_name }

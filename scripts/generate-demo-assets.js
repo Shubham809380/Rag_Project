@@ -1,6 +1,6 @@
-// Generate the sample (SIMULATED) datasets used by the SIH26117 demo.
+// Generate the sample (SIMULATED) datasets used by the example runs.
 //
-// Everything here is synthetic and clearly labelled. No MRPL confidential data
+// Everything here is synthetic and clearly labelled. No confidential plant data
 // is used or implied. Run:  npm run assets    (idempotent; --force to rebuild)
 import fs from 'node:fs';
 import path from 'node:path';

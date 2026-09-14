@@ -64,7 +64,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-heading mb-2">Welcome Back</h1>
           <p className="text-sm text-fg-secondary">
-            Sign in to your InsightRAG account to continue.
+            Sign in to your Sovereign AI Workbench account to continue.
           </p>
         </div>
 

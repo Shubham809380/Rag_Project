@@ -223,7 +223,7 @@ export async function exportContent(req, res) {
   try {
     const { format = 'markdown', title, content, meta = {}, contentType = 'application/octet-stream' } = req.body;
     if (!content) return res.status(400).json({ success: false, message: 'content is required' });
-    const result = await exportService.exportDocument({ format, title: title || 'InsightRAG Export', content, meta });
+    const result = await exportService.exportDocument({ format, title: title || 'Sovereign AI Workbench Export', content, meta });
     const ext = result.format === 'pdf' ? 'pdf' : result.format === 'txt' ? 'txt' : 'md';
     const safeBase = (title || 'export').replace(/[^a-z0-9-_]/gi, '_').slice(0, 60);
     res.setHeader('Content-Type', result.format === 'pdf' ? 'application/pdf' : 'text/markdown; charset=utf-8');

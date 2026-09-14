@@ -1,8 +1,8 @@
 # Sovereign AI Workbench — Architecture
 
-The workbench is an air-gapped, agentic, multimodal layer on top of the existing
-InsightRAG application. It can run with **zero cloud access**: SQLite storage, a
-local hybrid vector store, offline rule-based routing, a tamper-evident audit
+The workbench is a network-isolated, agentic, multimodal layer on top of the
+existing web application. It can run with **zero cloud access**: SQLite storage,
+a local hybrid vector store, offline rule-based routing, a tamper-evident audit
 trail, and honest "no local model / no network" boundaries that never fabricate
 deliverables.
 
@@ -10,7 +10,7 @@ deliverables.
 
 | Mode | Egress | Storage | Provider | Purpose |
 |------|--------|---------|----------|---------|
-| `SOVEREIGN_MODE=local` (default) | denied by monitor guard | SQLite (`sovereign/data/sovereign.sqlite`) | local gateway (Ollama/vLLM) | air-gapped operation |
+| `SOVEREIGN_MODE=local` (default) | denied by monitor guard | SQLite (`sovereign/data/sovereign.sqlite`) | local gateway (Ollama/vLLM) | network-isolated operation |
 | `SOVEREIGN_MODE=online` | allowed | Postgres / Pinecone / Gemini | cloud | connected variant (kept for compat) |
 
 > The governing rule: **local mode never falls back to the cloud, and never
@@ -99,5 +99,5 @@ scripts/
   demo-seed.js   ingest sample SOP/policy/LOTO docs
   demo-run.js    deterministic end-to-end walkthrough
 evaluation/
-  run-eval.js    25 automated self-checks (npm run eval)
+  run-eval.js    26 automated self-checks (npm run eval)
 ```

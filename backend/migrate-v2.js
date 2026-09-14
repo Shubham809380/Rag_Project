@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: new URL('../.env', import.meta.url) });
 
-// InsightRAG v2 schema: knowledge bases, usage analytics, summaries,
+// Sovereign AI Workbench v2 schema: knowledge bases, usage analytics, summaries,
 // research/study sessions, feedback, RAG evaluation, user settings.
 // These statements are idempotent (CREATE IF NOT EXISTS / ADD IF NOT EXISTS)
 // and safe to run on every startup.

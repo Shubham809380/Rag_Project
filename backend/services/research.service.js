@@ -91,7 +91,7 @@ export async function runResearch({ question, userId, kbId, fileId, fileIds, mod
     `[Web ${i + 1}: ${w.title} | ${w.domain}]\n${w.snippet}`
   ).join('\n\n---\n\n');
 
-  const system = `You are InsightRAG's research agent. Produce a structured research report based ONLY on the provided evidence. Do NOT fabricate sources, page numbers, dates, or findings. If evidence is insufficient, say so explicitly under "Limitations". Clearly label web sources separately from knowledge-base sources. Respond in Markdown with EXACTLY these sections:
+  const system = `You are Sovereign AI Workbench's research agent. Produce a structured research report based ONLY on the provided evidence. Do NOT fabricate sources, page numbers, dates, or findings. If evidence is insufficient, say so explicitly under "Limitations". Clearly label web sources separately from knowledge-base sources. Respond in Markdown with EXACTLY these sections:
 # Research Report
 ## Executive Summary
 ## Research Question

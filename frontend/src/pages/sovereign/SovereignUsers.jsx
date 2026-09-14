@@ -208,7 +208,7 @@ function NewUserModal({ open, onClose, onCreated }) {
               <div className="relative">
                 <Mail size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
                 <input type="email" className={`${inputCls} pl-8`} style={inputStyle} value={form.email} onChange={set('email')}
-                  placeholder="name@mrpl.local" required />
+                  placeholder="name@example.com" required />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

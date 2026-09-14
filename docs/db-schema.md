@@ -70,4 +70,4 @@ user_id, task_type, model, latency_ms, success, detail_json, created_at.
 
 ## Postgres (`SOVEREIGN_STORAGE=postgres`)
 Migrated via the classic `backend/migrate*.js`; the SQLite domain remains the
-offline source of truth. The air-gapped host simply never connects.
+offline source of truth. A network-isolated host simply never connects.

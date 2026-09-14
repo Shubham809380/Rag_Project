@@ -179,7 +179,7 @@ app.use('/api', apiRouter);
 
 // Root + health endpoints
 app.get('/', (_req, res) => {
-  res.json({ name: 'InsightRAG API', status: 'running', health: '/health', api: '/api' });
+  res.json({ name: 'Sovereign AI Workbench API', status: 'running', health: '/health', api: '/api' });
 });
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

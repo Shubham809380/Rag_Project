@@ -32,7 +32,7 @@ function glowTexture() {
 }
 
 const CHIPS = [
-  { label: 'MRPL AI CORE · LOCAL INFERENCE', pos: [0, -1.15, 0.3], color: '#67e8f9', size: 9, o: 0.85 },
+  { label: 'SOVEREIGN AI CORE · LOCAL INFERENCE', pos: [0, -1.15, 0.3], color: '#67e8f9', size: 9, o: 0.85 },
   { label: 'ON-PREM · NETWORK-ISOLATED', pos: [2.1, 0.55, -0.6], color: '#dbeafe', size: 7, o: 0.45 },
   { label: 'ZERO CLOUD DEPENDENCY', pos: [-2.15, 0.9, -0.7], color: '#dbeafe', size: 7, o: 0.42 },
 ];

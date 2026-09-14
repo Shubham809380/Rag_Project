@@ -223,7 +223,7 @@ export function sovereignIdentity(req) {
     if (req.headers['x-sovereign-role'] || req.headers['x-sovereign-user']) {
       return demoHeaderIdentity(req);
     }
-    // Fixed demo user — hackathon convenience. Requires BOTH DEMO_MODE and
+    // Fixed demo user — development convenience. Requires BOTH DEMO_MODE and
     // SOVEREIGN_DEMO_USER_ID; it never activates merely because env vars exist.
     if (sovereign.demo.enabled) {
       return {

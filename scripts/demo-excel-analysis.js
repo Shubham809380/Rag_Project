@@ -39,7 +39,7 @@ const riskTags = { 'B-101': 'HIGH', 'P-102': 'LOW' };
 const computed = warnings.map((tag) => ({ Equipment: tag, VibrationLimit_mm_s: 4.5, Reading_mm_s: 5.2, Verdict: riskTags[tag] }));
 
 const rowsSheets = [
-  { name: 'Analysis', header: ['Key', 'Value'], rows: [['Workbench', 'InsightRAG Sovereign'], ['Generated', 'on-premise'], ['Rows analyzed', computed.length]] },
+  { name: 'Analysis', header: ['Key', 'Value'], rows: [['Workbench', 'Sovereign AI Workbench'], ['Generated', 'on-premise'], ['Rows analyzed', computed.length]] },
   { name: 'Findings', header: ['Equipment', 'VibrationLimit_mm_s', 'Reading_mm_s', 'Verdict'], rows: computed.map(Object.values) },
 ];
 

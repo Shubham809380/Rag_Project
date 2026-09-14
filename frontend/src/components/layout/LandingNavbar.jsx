@@ -42,7 +42,7 @@ export default function LandingNavbar() {
             <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:shadow-blue-500/40 transition-shadow">
               <FileSearch className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold text-heading">InsightRAG</span>
+            <span className="text-lg font-bold text-heading">Sovereign AI Workbench</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-1">

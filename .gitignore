@@ -1,20 +1,43 @@
+# Dependencies
 node_modules/
-uploads/
 frontend/node_modules/
+
+# Build output
 frontend/dist/
 
-# Environment files
+# Model weights / AI caches (must never be committed; bundle weights offline)
+*.gguf
+*.safetensors
+*.onnx
+models/
+weights/
+cache/
+
+# Environment files (never commit real secrets or local overrides)
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
 
-# Vercel
-.vercel/
+# Sovereign runtime data (sqlite, audit chain, backups, generated artifacts, uploads)
+sovereign/data/*.sqlite
+sovereign/data/*.sqlite-*
+sovereign/backups/
+sovereign/audit/
+sovereign/artifacts/
+sovereign/uploads/
+sovereign/uploads-test/
+uploads/
+uploads-test/
+sovereign/tmp-tests-*/
 
-# IDE
+# Logs
+*.log
+server-*.log
+
+# IDE / OS
 .vscode/
 .idea/
-
-# OS
 .DS_Store
 Thumbs.db

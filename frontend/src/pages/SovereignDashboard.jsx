@@ -69,7 +69,7 @@ export default function SovereignDashboard() {
               <h2 className="text-lg font-bold">Sovereign AI Workbench</h2>
             </div>
             <p className="text-[13px] text-slate-300">
-              Air-gapped agentic workbench layered on InsightRAG — local models, local RAG, local OCR/vision, approved human-in-the-loop workflow.
+              Network-isolated agentic workbench — local models, local RAG, local OCR/vision, approved human-in-the-loop workflow.
             </p>
           </div>
           <div className="flex items-center gap-2">

@@ -12,7 +12,7 @@ export default function Footer() {
               <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center">
                 <FileSearch className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-slate-900 dark:text-white">InsightRAG</span>
+              <span className="font-bold text-slate-900 dark:text-white">Sovereign AI Workbench</span>
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
               Intelligent document analysis powered by advanced AI technology.
@@ -60,7 +60,7 @@ export default function Footer() {
 
         <div className="mt-8 pt-6 border-t border-slate-200/50 dark:border-slate-700/50 text-center">
           <p className="text-xs text-slate-400">
-            &copy; {new Date().getFullYear()} InsightRAG. All rights reserved.
+            &copy; {new Date().getFullYear()} Sovereign AI Workbench. All rights reserved.
           </p>
         </div>
       </div>

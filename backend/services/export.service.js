@@ -17,7 +17,7 @@ function stripMarkdown(md) {
     .split('\n').map(l => l.trim()).filter(l => l).join('\n');
 }
 
-export function toMarkdown({ title = 'InsightRAG Export', content, meta = {} }) {
+export function toMarkdown({ title = 'Sovereign AI Workbench Export', content, meta = {} }) {
   const lines = [];
   lines.push(`# ${title}`);
   lines.push('');
@@ -32,7 +32,7 @@ export function toMarkdown({ title = 'InsightRAG Export', content, meta = {} }) 
   return lines.join('\n');
 }
 
-export function toPDF({ title = 'InsightRAG Export', content }) {
+export function toPDF({ title = 'Sovereign AI Workbench Export', content }) {
   if (!pdfkit) {
     // Fallback: return plain text document
     return { format: 'txt', buffer: Buffer.from(`# ${title}\n\n${stripMarkdown(content)}`, 'utf8') };

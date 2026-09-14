@@ -49,7 +49,7 @@ export default function DashboardHeader({ onToggleSidebar = () => {}, onToggleDo
             style={{ background: 'linear-gradient(135deg, #3B82F6, #22D3EE)', boxShadow: '0 2px 8px rgba(59,130,246,0.25)' }}>
             <FileSearch className="w-4 h-4 text-white" />
           </div>
-          <span className="text-[15px] font-bold text-heading hidden sm:block">InsightRAG</span>
+          <span className="text-[15px] font-bold text-heading hidden sm:block">Sovereign AI Workbench</span>
         </Link>
         <Link to="/dashboard" className={`ml-2 hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium ${!menuOpen ? 'text-blue-400' : 'text-fg-muted'} hover:bg-card-hover transition-colors`}>
           <LayoutDashboard size={15} />

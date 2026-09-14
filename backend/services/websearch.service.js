@@ -52,7 +52,7 @@ function dedupe(results) {
 async function searchDuckDuckGo(query) {
   const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
   const res = await fetchGlobal(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; InsightRAG/1.0)' },
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SovereignAIWorkbench/1.0)' },
     signal: timeoutSignal(15000),
   });
   const html = await res.text();

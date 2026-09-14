@@ -78,10 +78,10 @@ const PIPELINE = [
 
 // Exact project data — nothing invented, nothing reworded.
 const PROJECT_INFO = [
-  { icon: Building2, label: 'Organization', value: 'Mangalore Refinery and Petrochemicals Limited (MRPL)' },
-  { icon: Network, label: 'Department', value: 'Mangalore Refinery and Petrochemicals Limited (MRPL)' },
+  { icon: Building2, label: 'Organization', value: 'Confidential Industrial Plant' },
+  { icon: Network, label: 'Department', value: 'Operations & Integrity' },
   { icon: Target, label: 'Category', value: 'Software' },
-  { icon: Settings2, label: 'Theme', value: 'Smart Automation' },
+  { icon: Settings2, label: 'Theme', value: 'Industrial Automation' },
   { icon: Orbit, label: 'Youtube Link', value: '—', note: 'Value not yet published' },
   { icon: Database, label: 'Dataset Link', value: 'Open-source models and publicly available document samples (sample scanned PDFs, sample P&IDs from open datasets) to be used for demonstration; no proprietary data required.' },
 ];
@@ -194,9 +194,9 @@ export default function SovereignLanding() {
             </div>
             <div>
               <div className="text-[15px] font-bold leading-none tracking-wide text-white">
-                MRPL <span className="gradient-text">SOVEREIGN</span>
+                SOVEREIGN <span className="gradient-text">AI WORKBENCH</span>
               </div>
-              <div className="text-[10px] tracking-[0.22em] font-mono text-slate-500">AI WORKBENCH · SIH 26117</div>
+              <div className="text-[10px] tracking-[0.22em] font-mono text-slate-500">ON-PREMISE AGENTIC AI · CONFIDENTIAL INDUSTRIAL WORK</div>
             </div>
           </div>
 
@@ -248,13 +248,13 @@ export default function SovereignLanding() {
             </div>
 
             <h1 className="text-[40px] leading-[1.06] font-extrabold tracking-tight text-white md:text-[62px]">
-              Smart Automation,
+              Industrial Operations,
               <br />
               <span className="gradient-text">engineered to stay sovereign.</span>
             </h1>
 
             <p className="mt-6 max-w-xl text-[15px] leading-relaxed text-slate-400">
-              <span className="text-slate-200 font-medium">Mangalore Refinery and Petrochemicals Limited (MRPL)</span> —
+              <span className="text-slate-200 font-medium">Sovereign AI Workbench</span> —
               a self-hosted, network-isolated AI workbench on open-weight multimodal models for confidential industrial work.
             </p>
 
@@ -264,8 +264,8 @@ export default function SovereignLanding() {
             </div>
 
             <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] font-mono uppercase tracking-widest text-slate-500">
-              <span className="inline-flex items-center gap-2"><Landmark size={13} className="text-sky-400" /> MRPL</span>
-              <span className="inline-flex items-center gap-2"><Settings2 size={13} className="text-cyan-400" /> Theme · Smart Automation</span>
+              <span className="inline-flex items-center gap-2"><Landmark size={13} className="text-sky-400" /> Sovereign AI</span>
+              <span className="inline-flex items-center gap-2"><Settings2 size={13} className="text-cyan-400" /> Theme · Industrial Automation</span>
               <span className="inline-flex items-center gap-2"><Target size={13} className="text-emerald-400" /> Category · Software</span>
             </div>
           </div>
@@ -574,7 +574,7 @@ export default function SovereignLanding() {
             <span className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#38BDF8,#22D3EE)' }}>
               <ShieldCheck className="w-3.5 h-3.5 text-slate-950" />
             </span>
-            MRPL Sovereign AI Workbench · Smart India Hackathon 2026
+            Sovereign AI Workbench · On-Premise Agentic AI for Confidential Industrial Work
           </div>
           <div className="text-[12px] font-mono text-slate-500">
             <span className="flex items-center gap-1.5">

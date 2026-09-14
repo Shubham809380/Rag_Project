@@ -57,12 +57,6 @@ const navSections = [
     ],
   },
   {
-    label: 'Demonstration',
-    items: [
-      { to: '/workbench/judge', icon: 'FlaskConical', label: 'Judge Demo', roles: ROLE_ALL },
-    ],
-  },
-  {
     label: 'Governance',
     items: [
       { to: '/workbench/approvals', icon: 'CheckCircle', label: 'Approvals', roles: ROLE_MANAGER },
@@ -662,7 +656,7 @@ export default function SovereignShell() {
                   Sovereign AI Workbench
                 </div>
                 <div className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                  Domain · MRPL
+                  Domain · On-Premise
                 </div>
               </div>
             </div>

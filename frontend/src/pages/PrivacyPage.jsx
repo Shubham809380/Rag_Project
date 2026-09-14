@@ -22,14 +22,14 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-xl font-bold text-heading mb-3">1. Information We Collect</h2>
               <p className="text-sm">
-                When you use InsightRAG, we collect your Google account information (name, email, profile picture) for authentication purposes. We also store documents you upload for analysis and chat history associated with your account.
+                When you use Sovereign AI Workbench, we collect your Google account information (name, email, profile picture) for authentication purposes. We also store documents you upload for analysis and chat history associated with your account.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-bold text-heading mb-3">2. How We Use Your Information</h2>
               <p className="text-sm">
-                Your information is used solely to provide and improve the InsightRAG service. We use your documents to generate AI-powered answers to your questions. We do not use your documents or data for training AI models.
+                Your information is used solely to provide and improve the Sovereign AI Workbench service. We use your documents to generate AI-powered answers to your questions. We do not use your documents or data for training AI models.
               </p>
             </section>
 

@@ -1,6 +1,6 @@
 # Security Model
 
-## Threat model (air-gapped assumption)
+## Threat model (network-isolated assumption)
 
 | Threat | Control |
 |--------|---------|
@@ -67,7 +67,11 @@ minimally re-links any mismatched rows and records an `audit_chain_repair` event
 
 ## Secrets & hygiene
 
-- Air-gapped mode requires no cloud keys. Online mode needs `GEMINI_API_KEY`,
+- Network-isolated mode requires no cloud keys. Online mode needs `GEMINI_API_KEY`,
   `PINECONE_KEY`, etc. — never commit `.env`.
+- The sovereign domain MUST use its own dedicated `SOVEREIGN_JWT_SECRET`. In
+  production the server fails fast when it is missing — it never silently falls
+  back to the classic-domain `JWT_SECRET`. In development `JWT_SECRET` is
+  tolerated only as a convenience fallback.
 - The monitor refuses outbound even for dependency managers at runtime; bundle
   images/weights offline (see `docs/deployment.md`).

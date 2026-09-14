@@ -33,7 +33,7 @@ function getTransporter() {
 }
 
 function getFromEmail() {
-  return process.env.MAILER_FROM || config.auth.mailerFrom || 'no-reply@insightrag.local';
+  return process.env.MAILER_FROM || config.auth.mailerFrom || 'no-reply@sovereign.local';
 }
 
 // Send an email. Returns { delivery: 'smtp' | 'console', preview }.
@@ -57,7 +57,7 @@ export async function sendEmail({ to, subject, html, text }) {
 
 // Convenience: build a reset email and send it.
 export async function sendPasswordReset({ to, resetUrl }) {
-  const subject = 'Reset your InsightRAG password';
-  const text = `Hello,\n\nWe received a request to reset your InsightRAG password.\n\nClick this link to choose a new password (valid for 15 minutes):\n${resetUrl}\n\nIf you did not request this, you can safely ignore this email.\n\n- The InsightRAG Team`;
+  const subject = 'Reset your Sovereign AI Workbench password';
+  const text = `Hello,\n\nWe received a request to reset your Sovereign AI Workbench password.\n\nClick this link to choose a new password (valid for 15 minutes):\n${resetUrl}\n\nIf you did not request this, you can safely ignore this email.\n\n- The Sovereign AI Workbench Team`;
   return sendEmail({ to, subject, text, html: text.replace(/\n/g, '<br/>') });
 }

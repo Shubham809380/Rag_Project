@@ -10,7 +10,7 @@ const LOG = 'CloudProvider';
 // CloudProvider (Gemini) — BUILD/STAGING DOMAIN ONLY.
 //
 // This provider is NEVER resolved in sovereign/local mode. The model router
-// enforces that. Keeping it here preserves the existing online InsightRAG path
+// enforces that. Keeping it here preserves the existing online Sovereign AI Workbench path
 // so the app remains functional in the internet-connected staging fleet.
 // ─────────────────────────────────────────────────────────────────────────────
 

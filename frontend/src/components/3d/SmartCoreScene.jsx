@@ -188,7 +188,7 @@ export default function SmartCoreScene({ modules = DEFAULT_MODULES, onNavigate }
       <Html center distanceFactor={9} position={[0, -1.35, 0.8]} zIndexRange={[40, 0]} style={{ pointerEvents: 'none' }}>
         <div className="mono-chip px-2 py-1 text-center">
           <div className="text-[9px] font-bold tracking-[0.2em]" style={{ color: '#38BDF8' }}>SOVEREIGN CORE</div>
-          <div className="text-[8.5px] mt-0.5 tracking-[0.22em] opacity-80" style={{ color: '#7dd3fc' }}>MRPL · SMART AUTOMATION</div>
+          <div className="text-[8.5px] mt-0.5 tracking-[0.22em] opacity-80" style={{ color: '#7dd3fc' }}>ON-PREMISE · INDUSTRIAL AUTOMATION</div>
         </div>
       </Html>
       <Ring radius={1.45} y={-0.05} speed={0.12} tilt={1.35} />
@@ -213,7 +213,7 @@ export default function SmartCoreScene({ modules = DEFAULT_MODULES, onNavigate }
         </mesh>
       </group>
       <Html center distanceFactor={8} position={[0, 1.95, 0.4]} zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
-        <div className="mono-chip px-2 py-0.5" style={{ borderColor: 'rgba(34,211,238,0.3)', color: '#38bdf8' }}>AIR-GAPPED · LOCAL ONLY</div>
+        <div className="mono-chip px-2 py-0.5" style={{ borderColor: 'rgba(34,211,238,0.3)', color: '#38bdf8' }}>NETWORK-ISOLATED · LOCAL ONLY</div>
       </Html>
       <Float speed={1.4} rotationIntensity={0.25} floatIntensity={0.7}>
         <group>

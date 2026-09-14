@@ -85,7 +85,7 @@ export default function SovereignSignupPage() {
         </div>
         <div>
           <Label>Work email</Label>
-          <input style={input} value={form.email} onChange={update('email')} placeholder="you@mrpl.local" autoComplete="email" />
+          <input style={input} value={form.email} onChange={update('email')} placeholder="you@example.com" autoComplete="email" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

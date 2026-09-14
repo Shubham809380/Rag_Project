@@ -1,7 +1,7 @@
 import pool from '../db.js';
 import * as aiService from './ai.service.js';
 
-const SYSTEM = `You are InsightRAG's Study Mode engine. Generate study content ONLY from the provided document content. Do not add outside knowledge. Questions must be answerable from the given content. Respond in the requested JSON structure. Do not fabricate facts.`;
+const SYSTEM = `You are Sovereign AI Workbench's Study Mode engine. Generate study content ONLY from the provided document content. Do not add outside knowledge. Questions must be answerable from the given content. Respond in the requested JSON structure. Do not fabricate facts.`;
 
 function getDifficultySeed(difficulty) {
   return difficulty === 'easy' ? 'Make questions basic and factual.' :

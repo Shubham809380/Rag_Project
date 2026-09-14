@@ -1,7 +1,7 @@
 {
-  "name": "insightrag",
+  "name": "sovereign-ai-workbench",
   "version": "1.0.0",
-  "description": "InsightRAG - AI Document Analyzer",
+  "description": "Sovereign AI Workbench — On-Premise Agentic AI for Confidential Industrial Work",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

@@ -1,4 +1,4 @@
-# Deployment (air-gapped / on-prem)
+# Deployment (network-isolated / on-premise)
 
 ## Requirements
 
@@ -16,12 +16,12 @@
    ```
    docker pull node:22-slim
    docker pull python:3.12-slim
-   # on the gateway host (air-gapped target): `ollama pull qwen3:8b qwen3-vl:8b nomic-embed-text`
+   # on the gateway host (off-line target): `ollama pull qwen3:8b qwen3-vl:8b nomic-embed-text`
    #   (larger profiles: qwen3:14b / qwen3:32b / qwen3-coder:30b-a3b / qwen3-vl:32b)
    docker image save node:22-slim python:3.12-slim > /offline/images.tar
    ```
 3. Copy the repo (including `node_modules`), `images.tar`, and the model weights
-   to the air-gapped host. `infrastructure/airgap/airgap-bundle.ps1` produces a
+   to the isolated host. `infrastructure/airgap/airgap-bundle.ps1` produces a
    ready-to-copy bundle automatically.
 4. Load the images (`docker image load < images.tar`) and place the models in the
    gateway's model directory.
@@ -40,13 +40,13 @@ npm test                      # 48 fast unit/integration checks
 npm run test:scanned          # flagship scanned-PDF → local OCR → RAG (live vision)
 npm run test:security         # prompt injection ×3, unauthorized approval, bypass, double decision
 # 4) run
-npm start                     # server on PORT (4877)
+npm start                     # server on PORT (5000)
 ```
 
 ## Containerised deployment (compose)
 
-`infrastructure/docker-compose.yml` + `infrastructure/docker/Dockerfile` provide an
-air-gapped two-service stack:
+`infrastructure/docker-compose.yml` + `infrastructure/docker/Dockerfile` provide a
+network-isolated two-service stack:
 
 - `ollama` — model gateway on the internal bridge (models pre-pulled offline).
 - `workbench` — node:22-slim runtime image (`node server.js`), `SOVEREIGN_EGRESS=deny`,
@@ -71,8 +71,10 @@ Frontend (separate build): `cd frontend && npm install && npm run build`, serve
 ## Operator notes
 
 - The egress guard logs every denied DNS/connect attempt to the audit trail
-  (`network` category). In any mode other than strict air-gap, set
-  `SOVEREIGN_MODE=online` (or `SOVEREIGN_UNSAFE_MODE=1` **development only**).
-- Auto DB migration against Postgres/Neon is attempted and fails gracefully when
-  the host is air-gapped; SQLite is the offline source of truth.
-- Rotate `JWT_SECRET`; in production replace the demo role header with real auth.
+  (`network` category). For additional layers beyond the application guard, set
+  OS/network-level firewall rules and physical network isolation
+  (`SOVEREIGN_UNSAFE_MODE=1` is **development only**).
+- Auto DB migration against Postgres is attempted and fails gracefully when there
+  is no reachable server; SQLite is the default offline source of truth.
+- Rotate `JWT_SECRET`/`SOVEREIGN_JWT_SECRET`; in production replace the dev role
+  header with real authentication.

@@ -26,7 +26,7 @@ export default function Navbar() {
               <FileSearch className="w-5 h-5 text-white" />
             </div>
             <span className="text-lg font-bold text-slate-900 dark:text-white hidden sm:block">
-              InsightRAG
+              Sovereign AI Workbench
             </span>
           </Link>
 

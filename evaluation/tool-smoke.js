@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { getSovereignDB } from '../backend/storage/sovereignDB.js';
 import { toolRegistry } from '../backend/tools/registry.js';
@@ -22,7 +23,8 @@ const ADMIN = { id: 'smoke-admin', email: 'admin@local.workbench', name: 'Smoke 
 const ctx = () => ({ user: ADMIN, sessionId: 'tool-smoke', taskId: 't-smoke', audit: auditService(), policy: policy(), db: getSovereignDB(), monitor: monitor() });
 const run = async (name, args) => toolRegistry().execute(name, args, ctx());
 
-const TMP = 'C:/Users/VICTUS/AppData/Local/Temp/opencode';
+const TMP = path.join(os.tmpdir(), 'sovereign-smoke');
+fs.mkdirSync(TMP, { recursive: true });
 console.log(`\n[${LOG}] Tool smoke — ${LIVE_LLM ? 'live vision OCR/analysis' : 'vision gated (TESTS_LIVE_LLM=1)'}`);
 
 // 1) Upload an .xlsx → read_excel returns plain rows (never executes formulas).

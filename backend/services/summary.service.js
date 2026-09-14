@@ -11,7 +11,7 @@ const TYPE_SPECS = {
   actions: { label: 'Action Items', prompt: 'Extract all action items, tasks, recommendations, and next steps as a markdown checklist.' },
 };
 
-const SYSTEM = `You are InsightRAG's summarization engine. You summarize ONLY the provided document content. Do not add outside knowledge. Do not invent facts. If asked for items (definitions/dates/actions) that are not present, say so explicitly rather than fabricating. Respond in the same language as the user/dev setting (default English).`;
+const SYSTEM = `You are Sovereign AI Workbench's summarization engine. You summarize ONLY the provided document content. Do not add outside knowledge. Do not invent facts. If asked for items (definitions/dates/actions) that are not present, say so explicitly rather than fabricating. Respond in the same language as the user/dev setting (default English).`;
 
 export function getSummaryTypes() {
   return Object.entries(TYPE_SPECS).map(([id, s]) => ({ id, label: s.label }));

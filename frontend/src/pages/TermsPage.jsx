@@ -22,14 +22,14 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-heading mb-3">1. Acceptance of Terms</h2>
               <p className="text-sm">
-                By accessing or using InsightRAG, you agree to be bound by these Terms and Conditions. If you do not agree with any part of these terms, you may not use the service.
+                By accessing or using Sovereign AI Workbench, you agree to be bound by these Terms and Conditions. If you do not agree with any part of these terms, you may not use the service.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-bold text-heading mb-3">2. Description of Service</h2>
               <p className="text-sm">
-                InsightRAG is an AI-powered document analysis platform that allows users to upload documents and ask questions to receive AI-generated answers based on the document content.
+                Sovereign AI Workbench is an AI-powered document analysis platform that allows users to upload documents and ask questions to receive AI-generated answers based on the document content.
               </p>
             </section>
 
@@ -50,21 +50,21 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-heading mb-3">5. Intellectual Property</h2>
               <p className="text-sm">
-                You retain full ownership of the documents you upload. InsightRAG does not claim any ownership over your content. The AI-generated answers are provided for informational purposes.
+                You retain full ownership of the documents you upload. Sovereign AI Workbench does not claim any ownership over your content. The AI-generated answers are provided for informational purposes.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-bold text-heading mb-3">6. Limitation of Liability</h2>
               <p className="text-sm">
-                InsightRAG is provided "as is" without warranties of any kind. We are not liable for any damages arising from the use of our service. AI-generated answers may contain inaccuracies and should be verified independently.
+                Sovereign AI Workbench is provided "as is" without warranties of any kind. We are not liable for any damages arising from the use of our service. AI-generated answers may contain inaccuracies and should be verified independently.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-bold text-heading mb-3">7. Service Availability</h2>
               <p className="text-sm">
-                We strive to keep InsightRAG available at all times but do not guarantee uninterrupted access. We may perform maintenance or updates that temporarily affect service availability.
+                We strive to keep Sovereign AI Workbench available at all times but do not guarantee uninterrupted access. We may perform maintenance or updates that temporarily affect service availability.
               </p>
             </section>
 

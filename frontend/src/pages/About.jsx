@@ -21,7 +21,7 @@ export default function About() {
           className="text-center mb-16"
         >
           <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 dark:text-white mb-4">
-            About InsightRAG
+            About Sovereign AI Workbench
           </h1>
           <p className="text-lg text-slate-500 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
             We leverage cutting-edge AI technology to help you extract insights from your documents faster and more accurately than ever before.

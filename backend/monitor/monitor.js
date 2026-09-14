@@ -155,7 +155,7 @@ class SovereignMonitor {
         if (!allow) {
           this._record({ type: 'egress_attempt', destination: host, blocked: deny, detail: { what } });
           if (deny) {
-            const err = new Error(`Sovereign egress guard: outbound ${what} to external host "${host}" is DENIED in air-gapped mode.`);
+            const err = new Error(`Sovereign egress guard: outbound ${what} to external host "${host}" is DENIED in network-isolated mode.`);
             err.code = 'SOVEREIGN_EGRESS_DENIED';
             err.sovereignBlocked = true;
             throw err;
@@ -209,7 +209,7 @@ class SovereignMonitor {
       if (cls === 'external') {
         this._record({ type: 'dns_request', destination: hostname, blocked: deny, detail: { kind } });
         if (deny) {
-          const err = new Error(`Sovereign egress guard: outbound DNS lookup for "${hostname}" is DENIED in air-gapped mode.`);
+          const err = new Error(`Sovereign egress guard: outbound DNS lookup for "${hostname}" is DENIED in network-isolated mode.`);
           err.code = 'SOVEREIGN_EGRESS_DENIED';
           err.sovereignBlocked = true;
           const cb = rest.find(a => typeof a === 'function');

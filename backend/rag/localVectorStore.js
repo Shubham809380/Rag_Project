@@ -37,6 +37,7 @@ function stem(w) {
   else if (r.endsWith('er') && r.length > 4) r = r.slice(0, -2); // replaced → replac
   else if (r.endsWith('es') && r.length > 4) r = r.slice(0, -2); // classes → class
   else if (r.endsWith('s') && r.length > 3 && !r.endsWith('ss')) r = r.slice(0, -1); // documents → document
+  if (r.endsWith('e') && r.length > 4) r = r.slice(0, -1); // require → requir (unify with required)
   return r;
 }
 
@@ -160,6 +161,12 @@ export class LocalVectorStore {
     }
     const queryTerms = tokenize(question);
 
+    // Keyword contribution is normalized with a gentle saturation curve
+    // (kw / (km + kw)) so BM25 relevance genuinely differentiates documents
+    // instead of saturating at min(kw,1) — which silently rendered all
+    // corpus docs as equal when real embeddings carry similar vector scores.
+    const BM25_NORM = 1.5;
+
     const scored = pool.map((c, i) => {
       const vec = vecByKey.get(`${c.documentId}:${c.chunkIndex}`);
       let vectorScore = useVector && vec ? cosSim(queryVec, vec) : 0;
@@ -179,7 +186,7 @@ export class LocalVectorStore {
         vector: vec || fallbackEmbedText(c.text),
         vectorScore,
         keywordScore: kw,
-        combinedScore: 0.5 * vectorScore + 0.5 * Math.min(kw, 1),
+        combinedScore: 0.5 * vectorScore + 0.5 * (kw / (BM25_NORM + kw)),
       };
     });
 

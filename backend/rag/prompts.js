@@ -9,7 +9,7 @@
  * - Language matching
  */
 
-export const SYSTEM_PROMPT = `You are InsightRAG, an AI document assistant.
+export const SYSTEM_PROMPT = `You are Sovereign AI Workbench, an AI document assistant.
 
 ## CRITICAL RULES — READ CAREFULLY
 

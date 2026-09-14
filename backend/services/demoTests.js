@@ -14,8 +14,8 @@ import logger from '../utils/logger.js';
 
 const LOG = 'DemoTests';
 
-// Real check harness for the SIH judge panel. Every runner performs an actual
-// operation against the live stack — no synthetic "green" is ever emitted.
+// Real check harness for the system verification panel. Every runner performs
+// an actual operation against the live stack — no synthetic "green" is ever emitted.
 
 function ok(test, status, summary, details = {}, logs = []) {
   return { test, status, summary, details, logs, ts: new Date().toISOString() };
@@ -46,7 +46,7 @@ export async function testEgress(user) {
 // ── t2. Local model inference: real generation via the router-selected model.
 export async function testModel(user) {
   const logs = [];
-  const decision = await modelRouter().decide({ question: 'Reply with exactly OK: MRPL_SOVEREIGN_OK', taskType: 'kb_question' });
+  const decision = await modelRouter().decide({ question: 'Reply with exactly OK: SOVEREIGN_OK', taskType: 'kb_question' });
   logs.push(`router decision: task=kb_question → model=${decision.decisionModelId || 'none'} status=${decision.decisionStatus} runtime=${decision.runtime} network=${decision.network}`);
   if (!decision.available || !decision.decisionModelId) {
     return unavailable('model', `No local model available (${decision.unavailableReason || 'gateway offline'}).`, decision, logs);
@@ -56,7 +56,7 @@ export async function testModel(user) {
     const provider = getLocalProvider();
     const resp = await provider.chat({
       model: decision.decisionModelId,
-      messages: [{ role: 'user', content: 'Reply with exactly OK: MRPL_SOVEREIGN_OK' }],
+      messages: [{ role: 'user', content: 'Reply with exactly OK: SOVEREIGN_OK' }],
     });
     const text = String(resp?.text ?? resp?.content ?? resp ?? '').trim();
     const ms = Date.now() - t0;

@@ -87,7 +87,7 @@ export default function SovereignAuthLayout({ children }) {
               <Airplay size={20} className="text-slate-950" />
             </div>
             <div>
-              <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-sky-400/80">MRPL · Smart Automation</div>
+              <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-sky-400/80">On-Premise · Industrial Automation</div>
               <div className="text-[18px] font-bold text-white tracking-tight">Sovereign Workbench</div>
             </div>
           </div>
