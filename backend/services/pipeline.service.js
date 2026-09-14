@@ -1,4 +1,5 @@
 import { TaskType } from '@google/generative-ai';
+import pool from '../db.js';
 import config from '../config/index.js';
 import logger from '../utils/logger.js';
 import { chunkByPages } from '../rag/chunker.js';
@@ -10,13 +11,14 @@ import * as llmService from './llm.service.js';
 
 const LOG = 'Pipeline';
 
-export async function ingestDocument(file, user) {
+export async function ingestDocument(file, user, documentRecord = {}) {
   const ingestStart = Date.now();
   const filePath = file.path;
   const fileName = file.originalname;
-  const fileId = `file-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  const docId = documentRecord.id;
+  const fileId = docId || `file-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
-  logger.stage(LOG, `INGEST START: ${fileName}`, { size: `${(file.size / 1024).toFixed(1)}KB`, userId: user?.id });
+  logger.stage(LOG, `INGEST START: ${fileName}`, { size: `${(file.size / 1024).toFixed(1)}KB`, userId: user?.id, docId });
 
   const validation = documentService.validateFile(file);
   if (!validation.valid) {
@@ -109,6 +111,39 @@ export async function ingestDocument(file, user) {
   const upsertStart = Date.now();
   const { upserted } = await pineconeService.upsertVectors(records, { label: fileId });
   logger.timing(LOG, 'Upsert', upsertStart);
+
+  // Persist chunks to document_chunks for keyword search + citation navigation
+  if (docId && upserted > 0) {
+    try {
+      const chunkRows = chunks.map((c, i) => ({
+        text: c.pageContent,
+        section: c.metadata?.section || '',
+        page: c.metadata?.page || 0,
+        chunk_index: i,
+      }));
+      for (let i = 0; i < chunkRows.length; i += 200) {
+        const batchSql = [];
+        const vals = [];
+        for (const cr of chunkRows.slice(i, i + 200)) {
+          vals.push(docId, user.id, cr.text, cr.section, cr.page, cr.chunk_index);
+          const base = vals.length;
+          batchSql.push(`($${base - 5}, $${base - 4}, $${base - 3}, $${base - 2}, $${base - 1}, $${base})`);
+        }
+        if (batchSql.length > 0) {
+          const bp = await pool;
+          await bp.query(
+            `INSERT INTO document_chunks (document_id, user_id, text, section, page, chunk_index) VALUES ${batchSql.join(',')} ON CONFLICT DO NOTHING`,
+            vals
+          );
+        }
+      }
+      const bp = await pool;
+      await bp.query(`UPDATE documents SET status='ready', embedding_status='ready', pages=$2, chunk_count=$3 WHERE id=$1`,
+        [docId, totalPages, upserted]);
+    } catch (dbErr) {
+      logger.error(LOG, 'Persist chunks to DB failed', { error: dbErr.message });
+    }
+  }
 
   documentService.cleanupFile(filePath);
 

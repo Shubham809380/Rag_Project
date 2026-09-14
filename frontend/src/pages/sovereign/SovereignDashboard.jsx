@@ -1,4 +1,4 @@
-import { lazy, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChartColumn as BarChart3,
@@ -20,12 +20,13 @@ import {
   RefreshCw,
   Boxes,
   ScanSearch,
+  Workflow,
+  FileCode,
+  LogOut,
 } from 'lucide-react';
 import { getSovereignDashboard } from '../../services/sovereign';
-import ThreeScene, { use3DCapable } from '../../components/3d/ThreeScene';
+import { useSovereignAuth } from '../../context/SovereignAuthContext';
 import StatusPill from '../../components/ui/StatusPill';
-
-const SmartCoreScene = lazy(() => import('../../components/3d/SmartCoreScene'));
 
 const RISK_TONE = {
   high: '#EF4444',
@@ -40,12 +41,83 @@ const TASK_TONE = {
   waiting_approval: '#F59E0B',
 };
 
+const AUTOMATION_MODULES = [
+  { id: 'documents',  label: 'Documents',      desc: 'Knowledge base',   icon: FileText,     tone: '#3B82F6', to: '/workbench/documents' },
+  { id: 'agent',      label: 'AI Workbench',   desc: 'Task orchestration', icon: Workflow,   tone: '#22D3EE', to: '/workbench/agent' },
+  { id: 'data',       label: 'Data Analysis',  desc: 'Local profiles',   icon: Database,     tone: '#A78BFA', to: '/workbench/data-analysis' },
+  { id: 'vision',     label: 'Vision Analysis', desc: 'On-device OCR',   icon: ScanSearch,   tone: '#F472B6', to: '/workbench/vision' },
+  { id: 'coding',     label: 'Coding',         desc: 'Sandboxed Python', icon: FileCode,     tone: '#38BDF8', to: '/workbench/coding' },
+  { id: 'deliverables', label: 'Deliverables', desc: 'Word · Excel · PDF', icon: Package,    tone: '#14B8A6', to: '/workbench/deliverables' },
+  { id: 'approvals',  label: 'Approvals',      desc: 'Human-in-the-loop', icon: ClipboardList, tone: '#FBBF24', to: '/workbench/approvals' },
+  { id: 'sovereignty', label: 'Sovereignty',   desc: 'Egress guard',     icon: ShieldCheck,  tone: '#FB7185', to: '/workbench/sovereignty' },
+];
+
+function moduleBadge(m, d) {
+  const stats = d?.stats || {};
+  switch (m.id) {
+    case 'documents': return { text: String(stats.documents ?? d?.documents?.length ?? 0), small: true };
+    case 'agent': return { text: `${String((d?.tasks || []).filter(t => t.status === 'running').length)} running`, small: true };
+    case 'data': return { text: `${String(stats.chunks || 0)} chunks`, small: true };
+    case 'vision': return { text: 'ON-DEVICE', small: true };
+    case 'coding': return { text: 'SANDBOXED', small: true };
+    case 'deliverables': return { text: String(stats.artifacts ?? 0), small: true };
+    case 'approvals': return { text: String((d?.pendingApprovals || []).length), small: true };
+    case 'sovereignty': return { text: String((d?.telemetry?.blockedEgress ?? 0)), small: true };
+    default: return { text: '', small: true };
+  }
+};
+
+function ModuleGrid({ data, nav }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {AUTOMATION_MODULES.map((m) => {
+        const Icon = m.icon;
+        const badge = moduleBadge(m, data);
+        return (
+          <button
+            key={m.id}
+            onClick={() => nav(m.to)}
+            className="group relative rounded-xl border p-3 text-left transition-all duration-200 hover:-translate-y-0.5"
+            style={{
+              background: 'var(--bg-base)',
+              borderColor: 'var(--border-subtle)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${m.tone}66`; e.currentTarget.style.background = `${m.tone}0d`; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.background = 'var(--bg-base)'; }}
+          >
+            <div className="flex items-center justify-between">
+              <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${m.tone}1a`, border: `1px solid ${m.tone}30` }}>
+                <Icon className="w-4 h-4" style={{ color: m.tone }} />
+              </span>
+              {badge.text && (
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded" style={{ color: m.tone, background: `${m.tone}14` }}>
+                  {badge.text}
+                </span>
+              )}
+            </div>
+            <div className="mt-2.5 text-[12px] font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>{m.label}</div>
+            <div className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{m.desc}</div>
+            <div className="invisible group-hover:visible text-[9px] font-mono uppercase tracking-wider mt-1.5 flex items-center gap-1" style={{ color: m.tone }}>
+              Open <ArrowRight className="w-3 h-3" />
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function SovereignDashboard() {
   const nav = useNavigate();
-  const capable = use3DCapable();
+  const { logout } = useSovereignAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const handleLogout = async () => {
+    try { await logout(); } catch { /* best-effort */ }
+    nav('/workbench/login', { replace: true });
+  };
 
   const load = async () => {
     setLoading(true);
@@ -160,7 +232,7 @@ export default function SovereignDashboard() {
             <StatCard icon={ClipboardList} label="Tasks" value={stats.tasks ?? tasks.length} sub={`${tasks.filter(t => t.status === 'running').length} running`} tone="#8B5CF6" onClick={() => nav('/workbench/agent')} />
             <StatCard icon={CheckCircle} label="Pending Approvals" value={pending.length} sub={pending.length ? 'awaiting review' : 'all clear'} tone={pending.length ? '#F59E0B' : '#10B981'} onClick={() => nav('/workbench/approvals')} />
             <StatCard icon={Package} label="Deliverables" value={stats.artifacts ?? 0} sub="reports · sheets · docs" tone="#14B8A6" onClick={() => nav('/workbench/deliverables')} />
-            <StatCard icon={Radio} label="External API Calls" value={tel.externalApiCalls ?? 0} sub="zero outbound" tone="#10B981" />
+            <StatCard icon={Radio} label="External API Calls" value={tel.externalApiCalls ?? 0} sub="app-layer egress guard" tone="#10B981" />
             <StatCard icon={Activity} label="Blocked Egress" value={tel.blockedEgress ?? 0} sub="attempts intercepted" tone="#EF4444" />
           </div>
 
@@ -211,22 +283,16 @@ export default function SovereignDashboard() {
               </div>
             )}
           </div>
+
+          {/* Automation modules quick-launch */}
+          <div className="tech-card p-4">
+            {paneHead({ icon: Boxes, title: 'Automation Modules', tone: '#38BDF8', action: 'Open workbench', onAction: () => nav('/workbench/agent') })}
+            <ModuleGrid data={data} nav={nav} />
+          </div>
         </div>
 
-        {/* Right: 3D Smart Automation Core + system panels */}
+        {/* Right: system panels */}
         <div className="space-y-6">
-          <div className="relative glass-panel rounded-2xl overflow-hidden hud" style={{ height: '340px' }}>
-            <ThreeScene Scene={SmartCoreScene} enabled={capable} mode="compact" sceneProps={{ onNavigate: (to) => nav(to) }} />
-            <div className="absolute top-3 left-4 z-10 flex items-center gap-2 pointer-events-none">
-              <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: '#22D3EE' }} />
-              <span className="text-[10px] font-mono uppercase tracking-[0.2em]" style={{ color: 'var(--text-secondary)' }}>Smart Automation Core</span>
-            </div>
-            <div className="absolute bottom-3 inset-x-4 z-10 flex items-center justify-between pointer-events-none">
-              <span className="text-[10px] font-mono text-[var(--text-muted)]">Hover a module — click to open</span>
-              {!capable && <ScanSearch className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />}
-            </div>
-          </div>
-
           <div className="tech-card p-4">
             {paneHead({ icon: BookOpen, title: 'Knowledge Base', tone: '#3B82F6', action: 'Manage', onAction: () => nav('/workbench/documents') })}
             <div className="text-[12px] space-y-2" style={{ color: 'var(--text-secondary)' }}>
@@ -239,6 +305,41 @@ export default function SovereignDashboard() {
                 <div key={k} className="flex justify-between items-center py-0.5" style={{ borderBottom: '1px dashed var(--border-subtle)' }}>
                   <span style={{ color: 'var(--text-muted)' }}>{k}</span>
                   <span className="font-mono" style={{ color: 'var(--text-primary)' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass-panel rounded-2xl p-4">
+            {paneHead({ icon: ShieldCheck, title: 'Egress Guard & Network Monitor', tone: '#10B981' })}
+            {/* boundary diagram */}
+            <div className="relative flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 mb-3"
+              style={{ background: 'rgba(7,11,20,0.55)', border: '1px dashed rgba(239,68,68,0.28)' }}>
+              <div className="text-center">
+                <div className="text-[9px] font-mono tracking-[0.18em] text-slate-500">INTERNET / CLOUD</div>
+                <div className="mt-0.5 text-[11px] font-bold text-red-400">⨯ DENIED</div>
+              </div>
+              <div className="h-px flex-1 mx-2 relative" style={{ background: 'linear-gradient(90deg, rgba(239,68,68,0.6), rgba(239,68,68,0.2))' }} />
+              <div className="text-center">
+                <div className="text-[9px] font-mono tracking-[0.18em] text-cyan-300/80">AIR-GAPPED ZONE</div>
+                <div className="mt-0.5 text-[11px] font-bold text-cyan-300">LOCAL AI WORKBENCH</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              <StatusPill tone="#10B981" mono>{data?.mode || 'local'} · no external calls</StatusPill>
+              <StatusPill tone="#EF4444" mono>egress blocked</StatusPill>
+              <StatusPill tone={data?.chainVerified ? '#10B981' : '#EF4444'} mono>{data?.chainVerified ? 'audit verified' : 'audit modified'}</StatusPill>
+            </div>
+            <div className="space-y-1.5 text-[12px]">
+              {[
+                ['Blocked egress attempts', tel.blockedEgress ?? 0, tel.blockedEgress > 0 ? '#FBBF24' : '#34D399'],
+                ['External API calls', tel.externalApiCalls ?? 0, (tel.externalApiCalls ?? 0) > 0 ? '#EF4444' : '#10B981'],
+                ['Cloud AI calls', tel.cloudModelCalls ?? 0, (tel.cloudModelCalls ?? 0) > 0 ? '#EF4444' : '#10B981'],
+                ['Local RAG queries', tel.localRagQueries ?? 0, '#38BDF8'],
+              ].map(([k, v, c]) => (
+                <div key={k} className="flex justify-between items-center" style={{ borderBottom: '1px dashed var(--border-subtle)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{k}</span>
+                  <span className="font-mono font-semibold" style={{ color: c }}>{v}</span>
                 </div>
               ))}
             </div>
@@ -285,6 +386,18 @@ export default function SovereignDashboard() {
             <ShieldCheck className="w-5 h-5" style={{ color: data?.chainVerified ? '#10B981' : '#EF4444' }} />
           </div>
         </div>
+      </div>
+
+      {/* Logout */}
+      <div className="flex justify-center pt-2 pb-4">
+        <button
+          onClick={handleLogout}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-medium transition-colors hover:bg-[rgba(239,68,68,0.08)] hover:border-[rgba(239,68,68,0.3)] border"
+          style={{ color: '#EF4444', borderColor: 'rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.05)' }}
+        >
+          <LogOut size={14} />
+          Logout
+        </button>
       </div>
     </div>
   );

@@ -22,6 +22,10 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    if (window.location.pathname.startsWith('/workbench')) {
+      setLoading(false);
+      return;
+    }
     checkAuth();
   }, [checkAuth]);
 

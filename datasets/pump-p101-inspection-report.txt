@@ -1,0 +1,25 @@
+INSPECTION REPORT — PUMP SERVICE CHECK (SIMULATED DATA)
+=====================================================================
+REPORT REF: INSP-2026-0911-02        DATE: 2026-09-10
+EQUIPMENT:  CENTRIFUGAL PUMP P-101  |  UNIT: SECTION-2, SULPHUR BLOCK
+TYPE:       ROTATING EQUIPMENT CONDITION SURVEY (NON-INTRUSIVE)
+CLASSIFICATION: INTERNAL (SIMULATED)   |  INSPECTOR: A. Sharma
+
+1. FINDINGS SUMMARY
+   1.1 Bearing housing temperature trending up to 54 deg C (limit 50 deg C).
+   1.2 Vibration velocity 5.2 mm/s at DE bearing (limit 4.5 mm/s).
+   1.3 Minor seal weep observed at the stuffing box (approx 1 drop / 30 s).
+   1.4 No coupling wear indicators; alignment within tolerance (±0.05 mm).
+
+2. RECOMMENDED ACTIONS
+   2.1 Schedule bearing replacement with LOTO per SOP-07 section 4.2.
+   2.2 Before work: validate cold-work permit, isolate and tag both isolation
+       valves, cool rotor until bearing housing is below 50 deg C.
+   2.3 Fire watch present for the duration of work.
+   2.4 Spare estimate crosses the 12 Lakh INR maintenance limit -> an approval
+       note with justification is required before procurement (POL-12 2.2/2.3).
+
+3. ADDITIONAL NOTES
+   3.1 Re-inspect temperature after 72 hours if operation must continue.
+   3.2 This is synthetic sample data for demonstration only — not a real plant
+       record.

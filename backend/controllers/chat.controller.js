@@ -1,5 +1,6 @@
 import pool from '../db.js';
 import * as pipelineService from '../services/pipeline.service.js';
+import { logUsage } from '../services/usage.service.js';
 import logger from '../utils/logger.js';
 
 const LOG = 'ChatController';
@@ -63,10 +64,11 @@ export async function analyze(req, res) {
       sources: result.sources || [], confidence: result.confidence || null,
       followUps: result.followUps || [], model: result.model || null,
     });
-    await pool.query(
-      `INSERT INTO chat_messages (user_id, conversation_id, role, message, metadata) VALUES ($1, $2, 'assistant', $3, $4)`,
+    const assistantInsert = await pool.query(
+      `INSERT INTO chat_messages (user_id, conversation_id, role, message, metadata) VALUES ($1, $2, 'assistant', $3, $4) RETURNING id`,
       [req.user.id, convId, result.answer, assistantMetadata]
     );
+    const assistantMessageId = assistantInsert.rows[0].id;
 
     if (previousMessages.length === 0) {
       const shortTitle = question.length > 60 ? question.substring(0, 60) + '...' : question;
@@ -76,10 +78,21 @@ export async function analyze(req, res) {
     const totalTime = Date.now() - requestStart;
     logger.info(LOG, `Analyze done`, { totalMs: totalTime, model: result.model, confidence: result.confidence });
 
-    res.json(result);
+    logUsage({
+      userId: req.user.id, type: 'chat', query: question, latencyMs: totalTime,
+      chunksRetrieved: result.sources?.length || null, confidence: result.confidence,
+      model: result.model, success: true,
+    });
+
+    res.json({ ...result, messageId: assistantMessageId, conversationId: convId });
   } catch (error) {
     const totalTime = Date.now() - requestStart;
     logger.error(LOG, `Analyze error (${totalTime}ms)`, { error: error.message });
+
+    logUsage({
+      userId: req.user.id, type: 'chat', query: req.body?.question || null,
+      latencyMs: totalTime, success: false, errorCode: error.message?.substring(0, 60),
+    });
 
     let userMessage = 'Analysis failed: ' + error.message;
     let statusCode = 500;

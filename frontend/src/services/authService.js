@@ -70,4 +70,33 @@ export function getGoogleAuthUrl(redirectPath = '/dashboard') {
   return url;
 }
 
+export async function forgotPassword(email) {
+  const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  return response.json();
+}
+
+export async function verifyResetToken(token) {
+  const response = await fetch(`${API_BASE_URL}/auth/verify-reset-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  return response.json();
+}
+
+export async function resetPassword(token, password) {
+  const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, password }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Password reset failed');
+  return data;
+}
+
 export { API_BASE_URL };

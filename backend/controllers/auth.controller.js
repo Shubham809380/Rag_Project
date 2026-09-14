@@ -1,8 +1,10 @@
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import pool from '../db.js';
 import config from '../config/index.js';
+import { sendPasswordReset } from '../services/mail.service.js';
 import { generateToken, setAuthCookie, clearAuthCookie } from '../middleware/auth.middleware.js';
 import logger from '../utils/logger.js';
 
@@ -257,4 +259,92 @@ export async function logout(req, res) {
     } catch {}
   }
   res.json({ message: 'Logged out successfully' });
+}
+
+// Request a password reset link. Always returns the same generic response to
+// avoid leaking which emails exist.
+export async function forgotPassword(req, res) {
+  try {
+    const { email } = req.body;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: 'A valid email is required' });
+    }
+
+    const user = await pool.query('SELECT id, email, auth_provider FROM users WHERE lower(email) = lower($1)', [email.toLowerCase()]);
+    if (user.rows.length === 0 || user.rows[0].auth_provider !== 'email') {
+      // Still return generic success to prevent account enumeration
+      return res.json({ success: true, message: 'If an account exists, a password reset link has been sent.' });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    await pool.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.rows[0].id]);
+    await pool.query(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, NOW() + INTERVAL '15 minutes')`,
+      [user.rows[0].id, tokenHash]
+    );
+
+    const resetUrl = `${config.auth.frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
+    await sendPasswordReset({ to: user.rows[0].email, resetUrl });
+
+    res.json({ success: true, message: 'If an account exists, a password reset link has been sent.' });
+  } catch (error) {
+    logger.error(LOG, 'Forgot password error', { error: error.message });
+    res.status(500).json({ success: false, message: 'Failed to process password reset request' });
+  }
+}
+
+// Confirm a reset token is valid (optional pre-checks before showing the form).
+export async function verifyResetToken(req, res) {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ success: false, message: 'Token is required' });
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const result = await pool.query(
+      `SELECT user_id FROM password_reset_tokens
+        WHERE token_hash = $1 AND used = FALSE AND expires_at > NOW()`,
+      [tokenHash]
+    );
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired reset token.' });
+    }
+    res.json({ success: true, valid: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to verify token' });
+  }
+}
+
+// Set a new password using a valid reset token.
+export async function resetPassword(req, res) {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      return res.status(400).json({ success: false, message: 'Token and new password are required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const result = await pool.query(
+      `SELECT prt.id, prt.user_id, u.email FROM password_reset_tokens prt
+        JOIN users u ON u.id = prt.user_id
+       WHERE prt.token_hash = $1 AND prt.used = FALSE AND prt.expires_at > NOW()`,
+      [tokenHash]
+    );
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired reset token.' });
+    }
+
+    const { id: resetId, user_id: userId } = result.rows[0];
+    const passwordHash = await bcrypt.hash(password, 12);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
+    await pool.query('UPDATE password_reset_tokens SET used = TRUE WHERE id = $1', [resetId]);
+
+    logger.info(LOG, 'Password reset completed', { userId });
+    res.json({ success: true, message: 'Password updated successfully. You can now sign in.' });
+  } catch (error) {
+    logger.error(LOG, 'Reset password error', { error: error.message });
+    res.status(500).json({ success: false, message: 'Failed to reset password' });
+  }
 }

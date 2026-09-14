@@ -192,7 +192,16 @@ export function chunkByPages(pages, baseMetadata = {}) {
     const pageNum = page.pageNumber || 0;
     const text = page.text || '';
     const chunks = smartChunk(text, { ...baseMetadata, page: pageNum });
-    allChunks.push(...chunks);
+    if (chunks.length === 0 && text.trim().length >= 10) {
+      // Small but real pages (e.g. short OCR'd equipment labels) must still be
+      // indexable; the general chunker intentionally drops sub-50-char text.
+      allChunks.push({
+        pageContent: text.trim(),
+        metadata: { ...baseMetadata, page: pageNum, section: undefined, charCount: text.trim().length },
+      });
+    } else {
+      allChunks.push(...chunks);
+    }
   }
 
   allChunks.forEach((chunk, i) => {

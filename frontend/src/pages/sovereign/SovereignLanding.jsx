@@ -12,7 +12,7 @@ import SectionHeader from '../../components/ui/SectionHeader';
 import GlowButton from '../../components/ui/GlowButton';
 import StatusPill from '../../components/ui/StatusPill';
 
-const SovereignCoreScene = lazy(() => import('../../components/3d/SovereignCoreScene'));
+const SovereignConstellationScene = lazy(() => import('../../components/3d/SovereignConstellationScene'));
 const AgentFlowScene = lazy(() => import('../../components/3d/AgentFlowScene'));
 const ModelRouterScene = lazy(() => import('../../components/3d/ModelRouterScene'));
 const KnowledgeSphereScene = lazy(() => import('../../components/3d/KnowledgeSphereScene'));
@@ -182,7 +182,7 @@ export default function SovereignLanding() {
           the canvas and hide the 3D. All content sections are relative and
           come later in DOM order, so they stack above it. */}
       <div className="fixed inset-0 z-0 pointer-events-none">
-        <ThreeScene Scene={SovereignCoreScene} sceneProps={{ phase }} enabled={capable} mode="hero" />
+        <ThreeScene Scene={SovereignConstellationScene} sceneProps={{ phase }} enabled={capable} mode="hero" />
       </div>
 
       {/* ─────────────────────────────── NAV ─────────────────────────────── */}
@@ -234,15 +234,16 @@ export default function SovereignLanding() {
       {/* ─────────────────────────────── HERO ─────────────────────────────── */}
       <section ref={heroRef} className="relative min-h-screen overflow-hidden">
         <div aria-hidden className="absolute inset-0" style={{ background: 'radial-gradient(70% 60% at 50% 30%, rgba(34,211,238,0.06), transparent 60%), linear-gradient(180deg, rgba(5,7,12,0.35) 0%, rgba(5,7,12,0) 40%, #05070C 92%)' }} />
+        <div aria-hidden className="absolute inset-y-0 left-0 w-[58%]" style={{ background: 'linear-gradient(90deg, rgba(5,7,12,0.72), rgba(5,7,12,0.25) 55%, transparent)' }} />
 
         <div className="relative max-w-7xl mx-auto px-5 pt-36 pb-16 lg:pt-44 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 items-center">
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-7">
               <StatusPill tone="#34D399">{status ? 'Sovereign Mode Active' : 'Sovereign Mode'}</StatusPill>
-              <StatusPill tone={isOnline ? '#FBBF24' : '#38BDF8'} mono>air-gapped</StatusPill>
+              <StatusPill tone={'#FBBF24'} mono>egress guard: {status?.egressMode || 'deny'}</StatusPill>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider text-slate-400 border" style={{ borderColor: 'rgba(148,163,184,0.15)' }}>
-                <Wifi size={11} className={isOnline ? 'text-amber-400' : 'text-sky-400'} />
-                {isOnline ? 'online' : 'no external calls'}
+                <Wifi size={11} className={isOnline ? 'text-sky-400' : 'text-slate-500'} />
+                host network: {isOnline ? 'reachable (guard still blocks app egress)' : 'offline'}
               </span>
             </div>
 
@@ -254,7 +255,7 @@ export default function SovereignLanding() {
 
             <p className="mt-6 max-w-xl text-[15px] leading-relaxed text-slate-400">
               <span className="text-slate-200 font-medium">Mangalore Refinery and Petrochemicals Limited (MRPL)</span> —
-              a self-hosted, air-gapped AI workbench on open-weight multimodal models for confidential industrial work.
+              a self-hosted, network-isolated AI workbench on open-weight multimodal models for confidential industrial work.
             </p>
 
             <div className="mt-9 flex flex-wrap items-center gap-3">
@@ -577,7 +578,7 @@ export default function SovereignLanding() {
           </div>
           <div className="text-[12px] font-mono text-slate-500">
             <span className="flex items-center gap-1.5">
-              <CloudOff className="w-3.5 h-3.5 text-emerald-400" /> 100% offline · <FileCheck className="w-3.5 h-3.5 ml-2 text-emerald-400" /> fully audited
+              <CloudOff className="w-3.5 h-3.5 text-emerald-400" /> app-layer egress guard · <FileCheck className="w-3.5 h-3.5 ml-2 text-emerald-400" /> fully audited
             </span>
           </div>
         </div>

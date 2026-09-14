@@ -1,0 +1,36 @@
+# Reference compose stack for the air-gapped Sovereign Workbench.
+# App talks to local Ollama over the compose network; egress stays disabled.
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
+    # No host port mapping is required — the app reaches it on the bridge.
+    # For manual `ollama pull` during provisioning, uncomment:
+    # ports: ["127.0.0.1:11434:11434"]
+
+  workbench:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/Dockerfile
+    restart: unless-stopped
+    depends_on: [ollama]
+    environment:
+      SOVEREIGN_MODE: local
+      SOVEREIGN_HW_PROFILE: small
+      LOCAL_GATEWAY_BASE: http://ollama:11434
+      LOCAL_GATEWAY_OPENAI_COMPAT: "true"
+      LOCAL_EMBED_MODEL: nomic-embed-text
+      # Code sandbox needs a docker CLI reachable from the workbench container
+      # (install `docker.io` in the image if you enable it).
+      SOVEREIGN_SANDBOX: "false"
+      PORT: 4877
+    volumes:
+      - sovereign-data:/app/sovereign
+    ports:
+      - "127.0.0.1:4877:4877"
+
+volumes:
+  ollama-models:
+  sovereign-data:

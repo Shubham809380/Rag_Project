@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useMemo, useState } from 'react';
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // Detects whether we can rely on motion-engineered visuals on this device.
 // Reduced-motion users get the static industrial visual; everyone else gets
@@ -22,22 +22,13 @@ export function IndustrialFallback({ mode = 'hero' }) {
       }} />
       {mode === 'hero' ? (
         <>
-          <div className="absolute inset-0 bg-grid-fine opacity-80" />
-          <div className="absolute left-1/2 top-[46%] -translate-x-1/2 -translate-y-1/2">
-            <div className="relative w-[340px] h-[340px] md:w-[460px] md:h-[460px] float-slow">
-              <div className="absolute inset-0 rounded-full" style={{ border: '1px solid rgba(56,189,248,0.25)' }} />
-              <div className="absolute inset-[13%] rounded-full" style={{ border: '1px dashed rgba(34,211,238,0.32)', animation: 'spin-slow 40s linear infinite' }} />
-              <div className="absolute inset-[26%] rounded-full border" style={{ border: '1px solid rgba(45,212,191,0.22)', animation: 'spin-slow-rev 30s linear infinite' }} />
-              <div className="absolute inset-[26%] rounded-full" style={{ borderStyle: 'dotted', borderWidth: '1px', borderColor: 'rgba(34,211,238,0.18)', transform: 'rotate(45deg)' }} />
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-2xl"
-                style={{ background: 'linear-gradient(135deg, rgba(34,211,238,0.26), rgba(56,189,248,0.12))', border: '1px solid rgba(34,211,238,0.45)', boxShadow: '0 0 70px rgba(34,211,238,0.35), inset 0 0 30px rgba(34,211,238,0.15)' }} />
-              <div className="absolute left-1/2 -top-1 -translate-x-1/2 w-9 h-9 rounded-full anchor-glow" style={{ background: 'rgba(56,189,248,0.5)', boxShadow: '0 0 40px rgba(56,189,248,0.9)' }} />
-              <div className="absolute right-0 top-1/3 w-4 h-4 rounded-full anchor-glow" style={{ background: 'rgba(45,212,191,0.55)', animationDelay: '0.4s' }} />
-              <div className="absolute left-3 bottom-1/4 w-3 h-3 rounded-full anchor-glow" style={{ background: 'rgba(34,211,238,0.55)', animationDelay: '0.9s' }} />
-              <div className="absolute top-[14%] left-[18%] w-2 h-2 rounded-full anchor-glow" style={{ background: 'rgba(56,189,248,0.6)', animationDelay: '0.2s' }} />
-              <div className="absolute bottom-[16%] right-[20%] w-2.5 h-2.5 rounded-full anchor-glow" style={{ background: 'rgba(45,212,191,0.6)', animationDelay: '0.6s' }} />
-            </div>
+          <div className="absolute inset-0 overflow-hidden" style={{ background: 'linear-gradient(180deg, #070c18 0%, #05070c 100%)' }}>
+            <div className="absolute -top-1/4 -left-1/4 w-[70vw] h-[70vw] max-w-[820px] max-h-[820px] rounded-full aurora-a" style={{ background: 'radial-gradient(circle, rgba(34,211,238,0.14), transparent 68%)', filter: 'blur(70px)', animationDuration: '18s' }} />
+            <div className="absolute -bottom-1/5 right-0 w-[62vw] h-[62vw] max-w-[720px] max-h-[720px] rounded-full aurora-b" style={{ background: 'radial-gradient(circle, rgba(56,189,248,0.12), transparent 68%)', filter: 'blur(70px)', animationDuration: '22s' }} />
+            <div className="absolute top-[12%] left-[42%] w-[38vw] h-[38vw] max-w-[460px] max-h-[460px] rounded-full aurora-c" style={{ background: 'radial-gradient(circle, rgba(45,212,191,0.11), transparent 64%)', filter: 'blur(60px)', animationDuration: '16s' }} />
+            <div className="absolute -bottom-1/6 left-[8%] w-[48vw] h-[48vw] max-w-[560px] max-h-[560px] rounded-full aurora-d" style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.06), transparent 62%)', filter: 'blur(70px)', animationDuration: '20s' }} />
           </div>
+          <div className="absolute inset-0 bg-grid-fine opacity-55" />
         </>
       ) : (
         <>
@@ -54,7 +45,7 @@ export function IndustrialFallback({ mode = 'hero' }) {
           </div>
         </>
       )}
-      <style>{`@keyframes spin-slow { to { transform: rotate(360deg); } }@keyframes spin-slow-rev { to { transform: rotate(-360deg); } }@keyframes float-slow { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }@keyframes anchor-glow { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.75); } }`}</style>
+      <style>{`@keyframes spin-slow { to { transform: rotate(360deg); } }@keyframes spin-slow-rev { to { transform: rotate(-360deg); } }@keyframes float-slow { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }@keyframes anchor-glow { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.75); } }@keyframes aurora-a { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.15; } 50% { transform: translate(8%,12%) scale(1.12); opacity: 0.09; } }@keyframes aurora-b { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.14; } 50% { transform: translate(-10%,8%) scale(1.18); opacity: 0.08; } }@keyframes aurora-c { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.13; } 50% { transform: translate(5%,-8%) scale(1.1); opacity: 0.07; } }@keyframes aurora-d { 0%,100% { transform: translate(0,0) scale(1); opacity: 0.12; } 50% { transform: translate(6%,10%) scale(1.15); opacity: 0.06; } }`}</style>
     </div>
   );
 }
@@ -89,6 +80,20 @@ export default function ThreeScene({
   ...canvasProps
 }) {
   const [failed, setFailed] = useState(false);
+  const failTimer = useRef(null);
+  // Context loss is often transient (drivers reset, StrictMode double-mounts).
+  // Only treat it as a failure if the GPU cannot recover within ~1.2s, and
+  // revert to WebGL as soon as the context is restored — no flash to fallback.
+  const handleContextLost = useCallback(() => {
+    if (failTimer.current) clearTimeout(failTimer.current);
+    failTimer.current = setTimeout(() => setFailed(true), 1200);
+  }, []);
+  const handleContextRestored = useCallback(() => {
+    if (failTimer.current) clearTimeout(failTimer.current);
+    failTimer.current = null;
+    setFailed(false);
+  }, []);
+  useEffect(() => () => { if (failTimer.current) clearTimeout(failTimer.current); }, []);
   const fallback = <IndustrialFallback mode={mode} />;
 
   if (!enabled || failed) {
@@ -103,7 +108,7 @@ export default function ThreeScene({
     <div className={`absolute inset-0 ${className}`}>
       <ThreeErrorBoundary>
         <Suspense fallback={fallback}>
-          <Canvas3D onContextLost={() => setFailed(true)} {...canvasProps}>
+          <Canvas3D onContextLost={handleContextLost} onContextRestored={handleContextRestored} {...canvasProps}>
             <Scene {...sceneProps} />
           </Canvas3D>
         </Suspense>

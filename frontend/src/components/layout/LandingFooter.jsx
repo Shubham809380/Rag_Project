@@ -51,29 +51,12 @@ export default function LandingFooter() {
           </div>
 
           <div>
-            <h4 className="font-semibold text-heading mb-4 text-sm">Connect</h4>
-            <ul className="space-y-2.5">
-              <li>
-                <a
-                  href="https://github.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-fg-secondary hover:text-blue-400 transition-colors"
-                >
-                  GitHub
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://linkedin.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-fg-secondary hover:text-blue-400 transition-colors"
-                >
-                  LinkedIn
-                </a>
-              </li>
-            </ul>
+            <h4 className="font-semibold text-heading mb-4 text-sm">Environment</h4>
+            <div className="text-xs leading-relaxed space-y-1.5" style={{ color: 'var(--text-muted)' }}>
+              <div>Air-gapped · on-premise</div>
+              <div>No cloud · no external APIs</div>
+              <div>All data local to this machine</div>
+            </div>
           </div>
         </div>
 

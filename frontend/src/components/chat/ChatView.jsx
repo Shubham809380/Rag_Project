@@ -147,7 +147,7 @@ export default function ChatView({ messages = [], onSend, isLoading, onOpenDocs,
                 } : undefined;
                 return (
                   <ChatMessage key={msg.id} role={msg.role} content={msg.content} isLast={i === messages.length - 1 && isLoading}
-                    sources={msg.sources} confidence={msg.confidence} followUps={msg.followUps} onSend={onSend} onPreviewSource={onPreviewSource}
+                    messageId={msg.id} sources={msg.sources} confidence={msg.confidence} followUps={msg.followUps} onSend={onSend} onPreviewSource={onPreviewSource}
                     isError={isError} onRetry={handleRetry} />
                 );
               })}

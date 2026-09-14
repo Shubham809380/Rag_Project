@@ -26,6 +26,9 @@ const uploadMultiple = upload.array('files', config.upload.maxFiles);
 // GET /api/documents → list
 router.get('/', authenticateToken, documentController.getDocuments);
 
+// GET /api/documents/:id → detail
+router.get('/:id', authenticateToken, documentController.getDocument);
+
 // DELETE /api/documents/:id → delete
 router.delete('/:id', authenticateToken, documentController.deleteDocument);
 

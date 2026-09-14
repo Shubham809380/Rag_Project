@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { User, Bot, Copy, Check, ThumbsUp, ThumbsDown, RotateCcw, AlertTriangle } from "lucide-react";
 import SourcesList from "./SourcesList";
+import { rateMessage, clearRating } from "../../services/api";
 
 function renderInline(text) {
   const parts = [];
@@ -79,7 +80,7 @@ function ActionButton({ icon: Icon, label, onClick, active, activeColor }) {
   );
 }
 
-export default function ChatMessage({ role, content, isLast, sources, confidence, followUps, onSend, onPreviewSource, isError, onRetry }) {
+export default function ChatMessage({ role, content, isLast, messageId, sources, confidence, followUps, onSend, onPreviewSource, isError, onRetry }) {
   const isUser = role === "user";
   const safeContent = content || '';
   const [copied, setCopied] = useState(false);
@@ -87,6 +88,16 @@ export default function ChatMessage({ role, content, isLast, sources, confidence
 
   const handleCopy = async () => {
     try { await navigator.clipboard.writeText(safeContent); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
+  };
+
+  const handleRate = async (value) => {
+    const next = feedback === value ? null : value;
+    setFeedback(next);
+    if (!messageId) return;
+    try {
+      if (next === null) await clearRating(messageId);
+      else await rateMessage(messageId, next === 'up' ? 'like' : 'dislike');
+    } catch {}
   };
 
   return (
@@ -140,8 +151,8 @@ export default function ChatMessage({ role, content, isLast, sources, confidence
               <ConfidenceBadge confidence={confidence} />
               <div className="flex items-center gap-0.5 ml-auto">
                 <ActionButton icon={copied ? Check : Copy} label="Copy" onClick={handleCopy} active={copied} activeColor="#22C55E" />
-                <ActionButton icon={ThumbsUp} label="Helpful" onClick={() => setFeedback(feedback === 'up' ? null : 'up')} active={feedback === 'up'} activeColor="#22C55E" />
-                <ActionButton icon={ThumbsDown} label="Not helpful" onClick={() => setFeedback(feedback === 'down' ? null : 'down')} active={feedback === 'down'} activeColor="#EF4444" />
+                <ActionButton icon={ThumbsUp} label="Helpful" onClick={() => handleRate('up')} active={feedback === 'up'} activeColor="#22C55E" />
+                <ActionButton icon={ThumbsDown} label="Not helpful" onClick={() => handleRate('down')} active={feedback === 'down'} activeColor="#EF4444" />
               </div>
             </div>
             <SourcesList sources={sources} onPreview={onPreviewSource} />

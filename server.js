@@ -18,6 +18,18 @@ const LOG = 'Server';
 
 uncaughtHandlers();
 
+// ── SECURITY FAIL-FAST (hardening) ──────────────────────────────────────────
+// A production Sovereign Workbench must NEVER boot with a missing, known or
+// weak signing secret. This check runs at import time and aborts the process.
+try {
+  const { assertSecureSecrets } = await import('./backend/config/sovereign.js');
+  assertSecureSecrets();
+} catch (err) {
+  logger.error(LOG, 'SECURITY FAIL-FAST', { error: err.message });
+  process.exitCode = 1;
+  throw err;
+}
+
 logger.info(LOG, 'Starting', {
   isRender: config.isRender,
   nodeEnv: config.isProduction ? 'production' : 'development',
@@ -25,6 +37,63 @@ logger.info(LOG, 'Starting', {
   hasPinecone: Boolean(config.pinecone.apiKey),
   hasGoogleOAuth: Boolean(config.auth.googleClientId && config.auth.googleClientSecret),
 });
+
+// ── Sovereign Workbench boot (air-gapped domain) ────────────────────────────
+try {
+  const { getSovereignDB } = await import('./backend/storage/sovereignDB.js');
+  const { monitor } = await import('./backend/monitor/monitor.js');
+  const { modelRegistry } = await import('./backend/models/registry.js');
+  const { isDockerAvailable } = await import('./backend/sandbox/docker.js');
+  const { probeProviders } = await import('./backend/ocr/ocrService.js');
+  getSovereignDB().init();
+  monitor().init();
+  await modelRegistry.syncFromProvider().catch(() => {}); // marks models honestly on first check
+  const [sov, ocrProbe, docker] = await Promise.all([
+    config.sovereign,
+    probeProviders(),
+    isDockerAvailable(),
+  ]);
+  const modelsAvailable = getSovereignDB().listModels().filter(m => m.status === 'available').length;
+  const ocrState = ocrProbe.tesseract
+    ? `AVAILABLE (tesseract ${ocrProbe.tesseractVersion})`
+    : ocrProbe.visionModel
+      ? 'AVAILABLE (local vision OCR only)'
+      : 'UNAVAILABLE (install Tesseract/Paddle to enable)';
+  const sovCfg = {
+    'Sovereign Mode': sov.mode,
+    'Egress': sov.network?.egressMode ?? 'deny',
+    'Storage': sov.storage?.backend ?? 'sqlite',
+    'Ollama': modelsAvailable > 0 || sov.provider?.baseUrl ? (modelsAvailable > 0 ? 'CONNECTED' : 'DISCONNECTED (0 models)') : 'DISCONNECTED',
+    'Models': modelsAvailable,
+    'OCR': ocrState,
+    'Docker': docker ? 'AVAILABLE' : 'UNAVAILABLE',
+    'Cloud Fallback': 'DISABLED',
+    'Demo Mode': sov.demo?.demoModeEnabled ? 'ENABLED (DEV ONLY)' : 'OFF — mandatory auth',
+  };
+  logger.info(LOG, 'Sovereign startup validation', sovCfg);
+  // Refuse to start a "production" sovereign domain with a broken egress guard.
+  if (config.isProduction && (sov.mode !== 'local' || sov.network?.egressMode !== 'deny')) {
+    logger.warn(LOG, 'PRODUCTION guard: sovereign domain is not local+deny. Review SOVEREIGN_MODE/SOVEREIGN_EGRESS before go-live.');
+  }
+} catch (err) {
+  logger.error(LOG, 'Sovereign workbench boot failed (continuing with classic app)', { error: err.message });
+}
+
+// Bootstrap sovereign administrator from env (air-gap friendly; no cloud involved).
+try {
+  const { ensureBootstrapAdmin } = await import('./backend/security/sovereignAuth.js');
+  await ensureBootstrapAdmin();
+} catch (err) {
+  logger.error(LOG, 'Sovereign admin bootstrap failed', { error: err.message });
+}
+
+// Scheduled Sovereign maintenance: WAL-safe backups + audit retention (hardening).
+try {
+  const { startMaintenance } = await import('./backend/maintenance/retention.js');
+  startMaintenance();
+} catch (err) {
+  logger.error(LOG, 'Sovereign maintenance scheduler failed', { error: err.message });
+}
 
 const app = express();
 
@@ -71,8 +140,15 @@ try {
 // Rate limiting
 app.use('/api', globalLimiter);
 
-// Auto-migration on startup
+// Auto-migration on startup — runs ONLY when the app is in the online Postgres
+// domain. In sovereign local/air-gapped mode (SQLite) this must never probe
+// cloud DBs, even if DATABASE_URL is incidentally present in the environment.
 (async () => {
+  const isLocalSovereign = config.sovereign?.mode === 'local';
+  if (isLocalSovereign || !process.env.DATABASE_URL) {
+    logger.info(LOG, `Auto-migration skipped (${isLocalSovereign ? 'local sovereign/SQLite mode' : 'no DATABASE_URL'})`);
+    return;
+  }
   try {
     const pool = (await import('./backend/db.js')).default;
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT \'user\'');
@@ -90,6 +166,8 @@ app.use('/api', globalLimiter);
       login_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       logout_at TIMESTAMPTZ, ip_address VARCHAR(45), user_agent TEXT)`);
     await pool.query('CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)');
+    const { runMigrationsV2 } = await import('./backend/migrate-v2.js');
+    await runMigrationsV2(pool);
     logger.info(LOG, 'Auto-migration complete');
   } catch (err) {
     logger.error(LOG, 'Auto-migration failed', { error: err.message });

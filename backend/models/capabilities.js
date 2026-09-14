@@ -1,0 +1,62 @@
+// Capability vocabulary used across registry/selector/router.
+export const CAPABILITIES = {
+  TEXT_GENERATION: 'text_generation',
+  REASONING: 'reasoning',
+  CODING: 'coding',
+  TOOL_CALLING: 'tool_calling',
+  VISION: 'vision',
+  LONG_CONTEXT: 'long_context',
+  STRUCTURED_OUTPUT: 'structured_output',
+  EMBEDDING: 'embedding',
+  OCR: 'ocr',
+};
+
+// Task types emitted by the classifier.
+export const TASK_TYPES = {
+  CHAT: 'chat',
+  CODING: 'coding',
+  MATH: 'math',
+  DOCUMENT_ANALYSIS: 'document_analysis',
+  RETRIEVAL: 'retrieval',
+  VISION: 'vision',
+  OCR: 'ocr',
+  ARTIFACT_GENERATION: 'artifact_generation',
+  RESEARCH: 'research',
+  AGENT: 'agent',
+  APPROVAL_NOTE: 'approval_note',
+  PROCUREMENT_NOTE: 'procurement_note',
+};
+
+export const MODALITIES = { TEXT: 'text', IMAGE: 'image', DOCUMENT: 'document', SPREADSHEET: 'spreadsheet', CODE: 'code' };
+
+// Task → required capabilities (minimal set).
+export const TASK_REQUIREMENTS = {
+  [TASK_TYPES.CHAT]: [CAPABILITIES.TEXT_GENERATION],
+  [TASK_TYPES.CODING]: [CAPABILITIES.CODING, CAPABILITIES.TEXT_GENERATION],
+  [TASK_TYPES.MATH]: [CAPABILITIES.REASONING, CAPABILITIES.TEXT_GENERATION],
+  [TASK_TYPES.DOCUMENT_ANALYSIS]: [CAPABILITIES.REASONING, CAPABILITIES.STRUCTURED_OUTPUT],
+  [TASK_TYPES.RETRIEVAL]: [CAPABILITIES.REASONING, CAPABILITIES.TEXT_GENERATION],
+  [TASK_TYPES.VISION]: [CAPABILITIES.VISION, CAPABILITIES.TEXT_GENERATION],
+  [TASK_TYPES.OCR]: [CAPABILITIES.VISION],
+  [TASK_TYPES.ARTIFACT_GENERATION]: [CAPABILITIES.STRUCTURED_OUTPUT, CAPABILITIES.TEXT_GENERATION],
+  [TASK_TYPES.RESEARCH]: [CAPABILITIES.REASONING, CAPABILITIES.LONG_CONTEXT],
+  [TASK_TYPES.AGENT]: [CAPABILITIES.TOOL_CALLING, CAPABILITIES.REASONING],
+  [TASK_TYPES.APPROVAL_NOTE]: [CAPABILITIES.REASONING, CAPABILITIES.STRUCTURED_OUTPUT],
+  [TASK_TYPES.PROCUREMENT_NOTE]: [CAPABILITIES.REASONING, CAPABILITIES.STRUCTURED_OUTPUT],
+};
+
+// Task → preferred model role.
+export const ROLE_BY_TASK = {
+  [TASK_TYPES.CHAT]: 'reasoning',
+  [TASK_TYPES.CODING]: 'coding',
+  [TASK_TYPES.MATH]: 'reasoning',
+  [TASK_TYPES.DOCUMENT_ANALYSIS]: 'reasoning',
+  [TASK_TYPES.RETRIEVAL]: 'reasoning',
+  [TASK_TYPES.VISION]: 'vision',
+  [TASK_TYPES.OCR]: 'vision',
+  [TASK_TYPES.ARTIFACT_GENERATION]: 'reasoning',
+  [TASK_TYPES.RESEARCH]: 'reasoning',
+  [TASK_TYPES.AGENT]: 'reasoning',
+  [TASK_TYPES.APPROVAL_NOTE]: 'reasoning',
+  [TASK_TYPES.PROCUREMENT_NOTE]: 'reasoning',
+};

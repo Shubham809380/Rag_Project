@@ -50,6 +50,8 @@ import SovereignModels from './pages/sovereign/SovereignModels';
 import SovereignTools from './pages/sovereign/SovereignTools';
 import SovereignUsers from './pages/sovereign/SovereignUsers';
 import SovereignMonitoring from './pages/sovereign/SovereignMonitoring';
+import SovereignJudge from './pages/sovereign/SovereignJudge';
+import SovereignSettings from './pages/sovereign/SovereignSettings';
 
 function VisitTracker() {
   const location = useLocation();
@@ -109,6 +111,8 @@ function AnimatedRoutes() {
                   <Route path="tools" element={<SovereignTools />} />
                   <Route path="users" element={<SovereignUsers />} />
                   <Route path="monitoring" element={<SovereignMonitoring />} />
+                  <Route path="judge" element={<SovereignJudge />} />
+                  <Route path="settings" element={<SovereignSettings />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
       </Routes>

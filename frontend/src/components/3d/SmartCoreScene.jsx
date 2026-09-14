@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html, Float } from '@react-three/drei';
 import * as THREE from 'three';
@@ -14,24 +14,59 @@ const DEFAULT_MODULES = [
   { id: 'sovereignty', label: 'Sovereignty', desc: 'Network egress monitoring', tone: '#fb7185', to: '/workbench/sovereignty' },
 ];
 
+const GEAR_TEETH = Array.from({ length: 14 }, (_, i) => (i / 14) * Math.PI * 2);
+const BOUND_RADIUS = 2.4;
+const BOUND_Y_MIN = -1.5;
+const BOUND_Y_MAX = 1.7;
+
+// "Smart Automation Core" — a gear-driven automation hub. The shell is an
+// octahedron cage, a driven gear ring orbits inside it, and a glowing brain
+// sphere sits at the center. The whole assembly can be grabbed and dragged
+// around the scene (a movable 3D object) and double-clicked to reset home.
 function Core() {
-  const ref = useRef();
-  const inner = useRef();
+  const shell = useRef();
+  const gear = useRef();
+  const brain = useRef();
+
   useFrame((state) => {
     const t = state.clock.elapsedTime;
-    ref.current.rotation.y = t * 0.18;
-    ref.current.rotation.x = Math.sin(t * 0.12) * 0.25;
-    inner.current.scale.setScalar(1 + Math.sin(t * 1.4) * 0.12);
+    if (shell.current) {
+      shell.current.rotation.y = t * 0.22;
+      shell.current.rotation.x = Math.sin(t * 0.14) * 0.3;
+    }
+    if (gear.current) gear.current.rotation.z += state.delta * 0.7;
+    if (brain.current) brain.current.scale.setScalar(1 + Math.sin(t * 1.6) * 0.12);
   });
+
   return (
-    <group position={[0, 0, 0]}>
-      <mesh ref={ref}>
-        <icosahedronGeometry args={[0.7, 1]} />
-        <meshStandardMaterial color="#12203a" emissive="#22d3ee" emissiveIntensity={0.55} metalness={0.85} roughness={0.3} wireframe />
+    <group>
+      {/* outer cage */}
+      <mesh ref={shell}>
+        <octahedronGeometry args={[0.85, 0]} />
+        <meshStandardMaterial color="#12203a" emissive="#22d3ee" emissiveIntensity={0.5} metalness={0.85} roughness={0.3} wireframe />
       </mesh>
-      <mesh ref={inner}>
-        <icosahedronGeometry args={[0.34, 1]} />
-        <meshStandardMaterial color="#0e1b30" emissive="#38bdf8" emissiveIntensity={1.1} metalness={0.6} roughness={0.25} flatShading />
+      {/* driven gear ring */}
+      <group ref={gear}>
+        <mesh rotation-x={Math.PI / 2}>
+          <ringGeometry args={[0.6, 0.84, 32]} />
+          <meshStandardMaterial color="#0e2238" emissive="#38bdf8" emissiveIntensity={0.35} metalness={0.8} roughness={0.35} side={THREE.DoubleSide} />
+        </mesh>
+        {GEAR_TEETH.map((a, i) => (
+          <mesh
+            key={i}
+            rotation={[0, 0, a]}
+            position={[0, 0.74, 0]}
+            rotation-order="ZYX"
+          >
+            <boxGeometry args={[0.09, 0.3, 0.1]} />
+            <meshStandardMaterial color="#16324f" emissive="#38bdf8" emissiveIntensity={0.5} metalness={0.8} roughness={0.3} />
+          </mesh>
+        ))}
+      </group>
+      {/* core brain */}
+      <mesh ref={brain}>
+        <sphereGeometry args={[0.26, 24, 24]} />
+        <meshStandardMaterial color="#0b1526" emissive="#7dd3fc" emissiveIntensity={1.5} metalness={0.5} roughness={0.2} />
       </mesh>
       <pointLight position={[0, 0, 1.6]} intensity={16} distance={7} color="#22d3ee" />
     </group>
@@ -41,7 +76,7 @@ function Core() {
 function Ring({ radius, y, speed, tilt }) {
   const ref = useRef();
   useFrame((state) => {
-    ref.current.rotation.z += state.clock.getDelta() * speed;
+    ref.current.rotation.z += state.delta * speed;
   });
   return (
     <group ref={ref} position={[0, y, 0]} rotation-x={tilt}>
@@ -49,6 +84,11 @@ function Ring({ radius, y, speed, tilt }) {
         <torusGeometry args={[radius, 0.025, 8, 80]} />
         <meshBasicMaterial color="#2a5e96" transparent opacity={0.8} />
       </mesh>
+      <mesh position={[radius * 0.82, 0, 0]}>
+        <sphereGeometry args={[0.05, 8, 8]} />
+        <meshBasicMaterial color="#7dd3fc" />
+      </mesh>
+      <pointLight position={[radius * 0.82, 0, 0]} intensity={2} distance={1.4} color="#7dd3fc" />
     </group>
   );
 }
@@ -56,6 +96,9 @@ function Ring({ radius, y, speed, tilt }) {
 export default function SmartCoreScene({ modules = DEFAULT_MODULES, onNavigate }) {
   const ref = useRef();
   const [active, setActive] = useState(null);
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef(null);
+  const pointerDown = useRef(null);
 
   const nodes = useMemo(() => {
     const R = 2.0;
@@ -75,17 +118,72 @@ export default function SmartCoreScene({ modules = DEFAULT_MODULES, onNavigate }
     });
   }, [modules]);
 
+  // ── drag-to-move: grab the assembly and slide it around in 3D ──────────
+  const handlePointerDown = useCallback((e) => {
+    e.stopPropagation();
+    const ev = e.nativeEvent;
+    ev.preventDefault?.();
+    if (!ref.current) return;
+    const p = ref.current.position;
+    pointerDown.current = { id: ev.pointerId, startX: ev.clientX, startY: ev.clientY, homeX: p.x, homeY: p.y };
+    setDragging(true);
+    document.body.style.cursor = 'grabbing';
+
+    const onMove = (me) => {
+      if (!pointerDown.current || me.pointerId !== pointerDown.current.id) return;
+      const dx = (me.clientX - pointerDown.current.startX) * 0.012;
+      const dy = -(me.clientY - pointerDown.current.startY) * 0.012;
+      const tx = THREE.MathUtils.clamp(pointerDown.current.homeX + dx, -BOUND_RADIUS, BOUND_RADIUS);
+      const ty = THREE.MathUtils.clamp(pointerDown.current.homeY + dy, BOUND_Y_MIN, BOUND_Y_MAX);
+      drag.current = { tx, ty };
+    };
+    const onUp = (ue) => {
+      if (ue.pointerId !== pointerDown.current?.id) return;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      pointerDown.current = null;
+      setDragging(false);
+      document.body.style.cursor = 'auto';
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, []);
+
+  const resetHome = useCallback((e) => {
+    e?.stopPropagation();
+    drag.current = { tx: 0, ty: 0 };
+  }, []);
+
   useFrame((state) => {
+    if (!ref.current) return;
     const t = state.clock.elapsedTime;
-    ref.current.rotation.y = t * 0.05;
-    const px = state.pointer.x * 0.2;
-    const py = state.pointer.y * 0.14;
-    ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, px, 0.05);
-    ref.current.position.y = THREE.MathUtils.lerp(ref.current.position.y, py, 0.05);
+    // gentle auto-rotation; paused while the user grabs the object
+    if (!dragging) ref.current.rotation.y = t * 0.05;
+    // pointer parallax when not dragging
+    if (!dragging) {
+      ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, state.pointer.x * 0.2, 0.05);
+      ref.current.position.y = THREE.MathUtils.lerp(ref.current.position.y, state.pointer.y * 0.14, 0.05);
+    }
+    // ease toward the drag target
+    if (drag.current) {
+      ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, drag.current.tx, 0.28);
+      ref.current.position.y = THREE.MathUtils.lerp(ref.current.position.y, drag.current.ty, 0.28);
+      if (Math.abs(ref.current.position.x - drag.current.tx) < 0.01 && Math.abs(ref.current.position.y - drag.current.ty) < 0.01) {
+        ref.current.position.x = drag.current.tx;
+        ref.current.position.y = drag.current.ty;
+        drag.current = null;
+      }
+    }
   });
 
   return (
-    <group ref={ref}>
+    <group
+      ref={ref}
+      onPointerDown={handlePointerDown}
+      onDoubleClick={resetHome}
+      onPointerOver={(e) => { e.stopPropagation(); if (!dragging) document.body.style.cursor = 'grab'; }}
+      onPointerOut={() => { if (!dragging) document.body.style.cursor = 'auto'; }}
+    >
       <Core />
       <Html center distanceFactor={9} position={[0, -1.35, 0.8]} zIndexRange={[40, 0]} style={{ pointerEvents: 'none' }}>
         <div className="mono-chip px-2 py-1 text-center">
@@ -95,13 +193,35 @@ export default function SmartCoreScene({ modules = DEFAULT_MODULES, onNavigate }
       </Html>
       <Ring radius={1.45} y={-0.05} speed={0.12} tilt={1.35} />
       <Ring radius={2.55} y={0.12} speed={-0.07} tilt={1.15} />
+      {/* air-gap boundary frame */}
+      <mesh position={[0, 0.1, 0]}>
+        <torusGeometry args={[3.34, 0.014, 8, 96]} />
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.16} depthWrite={false} />
+      </mesh>
+      <mesh position={[0, 0.1, 0]}>
+        <torusGeometry args={[3.62, 0.01, 8, 96]} />
+        <meshBasicMaterial color="#EF4444" transparent opacity={0.14} depthWrite={false} />
+      </mesh>
+      <group position={[3.62, 0.05, 0.15]} rotation={[0.2, 0, 0]}>
+        <mesh rotation-z={Math.PI / 4}>
+          <boxGeometry args={[0.04, 0.5, 0.04]} />
+          <meshBasicMaterial color="#EF4444" />
+        </mesh>
+        <mesh rotation-z={-Math.PI / 4}>
+          <boxGeometry args={[0.04, 0.5, 0.04]} />
+          <meshBasicMaterial color="#EF4444" />
+        </mesh>
+      </group>
+      <Html center distanceFactor={8} position={[0, 1.95, 0.4]} zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
+        <div className="mono-chip px-2 py-0.5" style={{ borderColor: 'rgba(34,211,238,0.3)', color: '#38bdf8' }}>AIR-GAPPED · LOCAL ONLY</div>
+      </Html>
       <Float speed={1.4} rotationIntensity={0.25} floatIntensity={0.7}>
         <group>
           {nodes.map((n) => (
             <group key={n.id} position={n.position}>
               <mesh
                 onPointerOver={(e) => { e.stopPropagation(); setActive(n.id); document.body.style.cursor = 'pointer'; }}
-                onPointerOut={() => { setActive(null); document.body.style.cursor = 'auto'; }}
+                onPointerOut={() => { setActive(null); if (!dragging) document.body.style.cursor = 'auto'; }}
                 onClick={(e) => { e.stopPropagation(); onNavigate?.(n.to); }}
               >
                 <boxGeometry args={[0.5, 0.5, 0.5]} />

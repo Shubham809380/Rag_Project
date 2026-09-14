@@ -4,12 +4,12 @@ import { Airplay, Shield, Wifi, WifiOff } from 'lucide-react';
 import { getSovereignStatus } from '../../services/sovereign';
 import ThreeScene, { use3DCapable } from '../3d/ThreeScene';
 
-const SovereignCoreScene = lazy(() => import('../3d/SovereignCoreScene'));
+const SovereignAuroraScene = lazy(() => import('../3d/SovereignConstellationScene'));
 
 const TECH_LABELS = [
   { top: '12%', left: '8%', tx: 'LOCAL NODE' },
   { top: '24%', left: '82%', tx: 'SECURE CHANNEL' },
-  { top: '46%', left: '5%', tx: 'AIR-GAP' },
+  { top: '46%', left: '5%', tx: 'ISOLATED BOUNDARY' },
   { top: '58%', left: '88%', tx: 'MODEL ROUTER' },
   { top: '76%', left: '10%', tx: 'RAG INDEX' },
   { top: '88%', left: '78%', tx: 'TOOL SANDBOX' },
@@ -42,9 +42,13 @@ export default function SovereignAuthLayout({ children }) {
   );
 
   return (
-    <div className="min-h-screen flex flex-col-reverse lg:flex-row" style={{ background: 'var(--bg-base)' }}>
+    <div className="min-h-screen flex flex-col-reverse lg:flex-row relative" style={{ background: 'transparent' }}>
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <ThreeScene Scene={SovereignAuroraScene} enabled={capable} mode="hero" />
+      </div>
+
       {/* Left panel — the form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 lg:px-12 relative overflow-hidden">
+      <div className="flex-1 flex items-center justify-center px-6 py-12 lg:px-12 relative z-10 overflow-hidden">
         <div aria-hidden className="absolute inset-0 pointer-events-none bg-grid-fine opacity-50" />
         <div aria-hidden className="absolute -top-24 right-0 w-[380px] h-[380px] rounded-full pointer-events-none"
           style={{ background: 'radial-gradient(circle, rgba(34,211,238,0.05), transparent 65%)' }} />
@@ -63,10 +67,9 @@ export default function SovereignAuthLayout({ children }) {
       </div>
 
       {/* Right panel — interactive 3D secure AI environment */}
-      <div className="relative flex flex-col justify-between min-h-[60vh] lg:min-h-screen lg:w-[52%] p-12 order-first lg:order-last overflow-hidden"
-        style={{ background: 'linear-gradient(200deg, #070B14 0%, #0A0F1C 55%, #071921 100%)' }}>
+      <div className="relative z-10 flex flex-col justify-between min-h-[60vh] lg:min-h-screen lg:w-[52%] p-12 order-first lg:order-last overflow-hidden"
+        style={{ background: 'linear-gradient(200deg, rgba(7,11,20,0.62) 0%, rgba(10,15,28,0.55) 55%, rgba(7,25,33,0.6) 100%)' }}>
 
-        <ThreeScene Scene={SovereignCoreScene} sceneProps={{ mode: 'auth' }} enabled={capable} mode="hero" />
         <div aria-hidden className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(60% 55% at 50% 30%, rgba(34,211,238,0.05), transparent 60%), linear-gradient(180deg, rgba(7,11,20,0.3) 0%, transparent 45%, rgba(7,11,20,0.75) 100%)' }} />
 
         {/* Engineering telemetry markings */}
