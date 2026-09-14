@@ -275,7 +275,7 @@ Set `LOCAL_GATEWAY_BASE=http://127.0.0.1:11434` in `.env`.
 | RAG | Hybrid BM25 + cosine similarity + MMR |
 | Document Gen | docx, pdf-lib, pptxgenjs, xlsx |
 | Security | bcrypt, rate limiting, RBAC, SHA-256 audit |
-| Deployment | Vercel (frontend), Render (backend), Docker |
+| Deployment | Local (Docker), air-gap bundling |
 
 ---
 

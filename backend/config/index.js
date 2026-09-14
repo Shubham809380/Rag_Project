@@ -29,7 +29,6 @@ function toAbsoluteUrl(value, fallback) {
   }
 }
 
-const isVercel = !!process.env.VERCEL;
 const isRender = !!process.env.RENDER;
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -68,7 +67,6 @@ const backendUrl = toAbsoluteUrl(
 const frontendUrl = toAbsoluteUrl(optionalEnv('FRONTEND_URL'), 'http://localhost:5173');
 
 const config = {
-  isVercel,
   isRender,
   isProduction,
   port: parseInt(optionalEnv('PORT', '5000'), 10),
